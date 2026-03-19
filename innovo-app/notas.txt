@@ -1,0 +1,65 @@
+{
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      }
+    },
+    "preview2": {
+      "android": {
+        "gradleCommand": ":app:assembleRelease"
+      }
+    },
+    "preview3": {
+      "developmentClient": true
+    },
+    "preview4": {
+      "distribution": "internal"
+    },
+    "production": {}
+  }
+}
+run expo: npx expo
+run whit module native: npx expo run:android 
+pre build: npx expo prebuild --clean
+building: eas build -p android --profile production
+
+
+asistencia especial (toma- reparto) (Comercial-Comercial GV) ruta {numero}
+comercial - zona interior
+comercial GV - valparaiso
+
+*toma estado- adjuntar observacion
+
+*si hay atencion especial requiere que la lectura o reparto tenga fotografia
+
+
+
+
+
+sudo nano /etc/yum.repos.d/mongodb-org.repo
+[mongodb-org-7.0]name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/8/mongodb-org/7.0/x86_64/
+gpgcheck=1enabled=1gpgkey=https://www.mongodb.org/static/pgp/server-7.0.asc
+sudo dnf clean all
+sudo dnf makecache
+sudo dnf install mongodb-org
+ls -l /usr/bin/mongod
+
+sudo systemctl stop mongod
+sudo dnf install -y dnf-plugins-core
+####
+sudo tee /etc/yum.repos.d/mongodb-org-7.0.repo <<EOF
+[mongodb-org-7.0]
+name=MongoDB Repository
+baseurl=https://repo.mongodb.org/yum/redhat/\$releasever/mongodb-org/7.0/x86_64/
+gpgcheck=1
+enabled=1
+gpgkey=https://www.mongodb.org/static/pgp/server-7.0.asc
+EOF
+####
+sudo dnf erase -qy mongodb-mongosh
+sudo dnf install -qy mongodb-mongosh-shared-openssl3
+
+sudo systemctl start mongod
+sudo systemctl status mongod

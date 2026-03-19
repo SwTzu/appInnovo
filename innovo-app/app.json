@@ -1,0 +1,97 @@
+{
+  "expo": {
+    "androidNavigationBar": {
+      "visible": "sticky-immersive"
+    },
+    "name": "innovo-app",
+    "slug": "innovo-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "myapp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": false,
+    "splash": {
+      "image": "./assets/images/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "googleServicesFile": "./google-services.json",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ],
+      "package": "com.lowframes.innovoapp",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCpsD32sxP5vkH1eBb30wOzIDmFXPipLtA"
+        }
+      },
+      "versionCode": 14
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/notification_icon.png",
+          "color": "#ffffff",
+          "defaultChannel": "default",
+          "enableBackgroundRemoteNotifications": true
+        }
+      ],
+      "expo-secure-store",
+      "expo-camera",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "La aplicación accede a tus fotos para permitirte seleccionar una imagen para subir."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "GOOGLE_MAPS_API_KEY": "AIzaSyCpsD32sxP5vkH1eBb30wOzIDmFXPipLtA",
+      "EXPO_PUBLIC_API_URL": "http://blocktype.cl:3001/",
+      "eas": {
+        "projectId": "3876e760-cf90-42bc-8cb2-87a0c16e0f53"
+      }
+    }
+  }
+}

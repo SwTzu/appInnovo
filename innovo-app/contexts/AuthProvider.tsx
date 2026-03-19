@@ -1,0 +1,366 @@
+import React, {
+  createContext,
+  useEffect,
+  useContext,
+  useState,
+  ReactNode,
+} from "react";
+import { useCameraPermissions } from "expo-camera";
+import { Alert } from "react-native";
+import { loginApi } from "@/api/standar";
+import {getUV} from "@/api/trabajador";
+import * as SecureStore from "expo-secure-store";
+import { router } from "expo-router";
+import { io, Socket } from "socket.io-client";
+import { validarToken } from "@/api/standar";
+import { GlobalProvider } from "@/contexts/GlobalContext";
+import { StatusBar } from "expo-status-bar";
+import * as Notifications from "expo-notifications";
+import * as Location from "expo-location";
+import NetInfo from "@react-native-community/netinfo";
+import DeviceInfo from "react-native-device-info";
+const apiURL = process.env.EXPO_PUBLIC_API_URL;
+interface AuthContextProps {
+  login: (rut: string, password: string) => Promise<void>;
+  socket: Socket | null;
+  isAuthenticated: boolean;
+  obtenerUbicacion: () => Promise<{ lat: number; lng: number } | undefined>;
+  uvData: { indiceUV_h: number; indiceUV_m: number };
+  checkToken: () => Promise<void>;
+}
+const obtenerUbicacion = async () => {
+  const { status } = await Location.requestForegroundPermissionsAsync();
+  if (status !== "granted") {
+    console.warn("Permiso de ubicación denegado");
+    return;
+  }
+  const location = await Location.getCurrentPositionAsync({});
+  const ubicacion = {
+    lat: location.coords.latitude,
+    lng: location.coords.longitude,
+  };
+  return ubicacion;
+};
+let locationSubscription: Location.LocationSubscription | null = null; // Guardar la suscripción
+let isTracking = false; // Control de ejecución única
+const trackLocation = async (socket: Socket | null, token: string) => {
+  if (!socket || !token || isTracking) return; // Evitar múltiples ejecuciones
+
+  // 🔹 Si ya hay una suscripción, cancelarla antes de iniciar una nueva
+  if (locationSubscription) {
+    locationSubscription.remove();
+  }
+
+  let lastUbicacion: { lat: number; lng: number } | null = null; // Última ubicación conocida
+
+  locationSubscription = await Location.watchPositionAsync(
+    {
+      accuracy: Location.Accuracy.High,
+      timeInterval: 5000, // Se ejecuta cada 5 segundos
+      distanceInterval: 10, // Se ejecuta si el usuario se mueve más de 10 metros
+    },
+    async (location) => {
+      const ubicacion = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+
+      // 🔹 Verificar si la ubicación realmente cambió antes de enviarla
+      if (
+        lastUbicacion &&
+        ubicacion.lat === lastUbicacion.lat &&
+        ubicacion.lng === lastUbicacion.lng
+      ) {
+        return;
+      }
+
+      lastUbicacion = ubicacion; // Actualizar última ubicación conocida
+      // 🔹 Enviar solo si hay cambios
+      socket.emit("actualizarUbicacion", { token, ubicacion });
+    }
+  );
+};
+const AuthContext = createContext<AuthContextProps | undefined>(undefined);
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({
+  children,
+}) => {
+  const [socket, setSocket] = useState<Socket | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [uvData, setUvData] = useState({ indiceUV_h: 0, indiceUV_m: 0 });
+  const [permission, requestPermission] = useCameraPermissions();
+  useEffect(() => {
+    console.log("🔆 Iniciando la aplicación...");
+    const fetchUVData = async () => {
+      const ubicacion = await obtenerUbicacion();
+      if (!ubicacion) return;
+      const uvData = await getUV(ubicacion);
+      setUvData({indiceUV_h: uvData[0], indiceUV_m: uvData[1]});
+    };
+    fetchUVData();
+  }, []);
+  useEffect(() => {
+    const checkNotificationPermissions = async () => {
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== "granted") {
+        const { status: newStatus } =
+          await Notifications.requestPermissionsAsync();
+        if (newStatus !== "granted") {
+          console.warn("Permisos de notificaciones denegados");
+        }
+      }
+    };
+    checkNotificationPermissions();
+  }, []);
+  useEffect(() => {
+    let cancel = false; // para que, si se desmonta el componente, podamos “cancelar” el bucle
+    const checkConnectionLoop = async () => {
+      if (cancel) return; // en caso de que se desmonte antes de terminar
+      // 1. Chequeamos conexión
+      const redStatus = await statusConnection();
+      if (redStatus) {
+        // 2. Hay conexión: continuar lógica
+        checkToken();
+      } else {
+        // 3. NO hay conexión: mostrar alerta y esperar interacción
+        Alert.alert(
+          "❌ Sin conexión con el Servidor.",
+          "Intente de nuevo mas tarde.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                if (!cancel) {
+                  // Esperar 3 seg antes de reintentar
+                  setTimeout(() => {
+                    checkConnectionLoop();
+                  }, 10000);
+                }
+              },
+            },
+          ],
+          { cancelable: false }
+        );
+      }
+    };
+
+    // Iniciar el ciclo
+    checkConnectionLoop();
+
+    return () => {
+      cancel = true; // si el componente se desmonta, detiene el bucle
+    };
+  }, []);
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      if (!socket || !isAuthenticated) return;
+      // Solo nos interesa manejar el socket cuando el usuario está logueado
+      if (state.isConnected) {
+        console.log("📶 Se recuperó la conexión a Internet");
+        if (!socket.connected) {
+          socket.connect();
+        }
+      } else {
+        console.log("❌ Se perdió la conexión a Internet");
+      }
+    });
+    return () => {
+      unsubscribe();
+    };
+  }, [socket, isAuthenticated]);
+  useEffect(() => {
+    if (!permission?.granted) {
+      requestPermission();
+    }
+  }, [permission]);
+  useEffect(() => {
+    const responseListener =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        router.push("/(lector)/modalNotificaciones");
+      });
+
+    return () => {
+      Notifications.removeNotificationSubscription(responseListener);
+    };
+  }, []);
+  
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+  const connectSocket = (token: string) => {
+    if (socket && isAuthenticated) {
+      console.warn(
+        "⚠️ WebSocket ya está conectado. No se abrirá una nueva conexión."
+      );
+      return;
+    }
+    const socketInstance = io(apiURL, {
+      transports: ["websocket"],
+      query: { token },
+      reconnection: true, // Reconexión automática
+      reconnectionAttempts: 10, // Número de intentos de reconexión
+      reconnectionDelay: 3000, // Tiempo entre intentos (en ms)
+    });
+
+    socketInstance.on("connect", async () => {
+      console.log("🔗 Conectado a Socket.IO");
+      const ubicacion = await obtenerUbicacion().then((ubicacion) => {
+        return ubicacion;
+      });
+
+      socketInstance.emit("registrarTrabajador", { token, ubicacion }); // Enviamos el token
+      await trackLocation(socketInstance, token); // Seguimiento con token
+    });
+    socketInstance.on("disconnect", (reason) => {
+      console.error("Socket.IO desconectado:", reason);
+    });
+    socketInstance.on("reconnect_attempt", () => {
+      console.log("Intentando reconectar...");
+    });
+    socketInstance.on("connect_error", (error) => {
+      console.error("Error al conectar Socket.IO:", error.message);
+    });
+    socketInstance.on("message", (data) => {
+      console.log("Mensaje recibido del servidor:", data);
+    });
+    // Escuchar evento de notificación
+    setSocket(socketInstance);
+    return () => {
+      socketInstance.disconnect(); // Desconectar al desmontar
+    };
+  };
+  const statusConnection = async () => {
+    const state = await NetInfo.fetch();
+    if (!state.isConnected) {
+      return false;
+    }
+    try {
+      if (!apiURL) {
+        throw new Error("API URL is not defined");
+      }
+      const response = await fetch(apiURL);
+      if (response.ok) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      console.error("Error al comprobar disponibilidad del servidor:", error);
+      return false;
+    }
+  };
+  const login = async (rut: string, password: string) => {
+    const redStatus = await statusConnection();
+    if (!redStatus) {
+      console.error("❌ Sin conexión con el servidor.");
+      alert("No hay conexión a Internet.");
+      return;
+    }
+    try {
+      const pushToken = (await Notifications.getExpoPushTokenAsync()).data; // Obtener el token push más reciente
+      const deviceID = await DeviceInfo.getUniqueId(); // Obtener el ID único del dispositivo
+      if (
+        !deviceID ||
+        !pushToken ||
+        deviceID.trim() === "" ||
+        pushToken.trim() === ""
+      ) {
+        console.error("Falta deviceID o pushToken, o están vacíos");
+        alert("❌ Error al obtener información del dispositivo.");
+        return;
+      }
+      const token = await loginApi(rut, password, deviceID, pushToken); // Enviar el pushToken al backend
+      if (token) {
+        await SecureStore.setItemAsync("token", token);
+        setIsAuthenticated(true);
+        if (!socket) connectSocket(token);
+        router.dismissTo("/(lector)/home");
+      } else {
+        alert("❌ Usuario o contraseña incorrectos.");
+        setIsAuthenticated(false);
+      }
+    } catch (error) {
+      console.error("Error al iniciar sesión:", error);
+    }
+  };
+  const checkToken = async () => {
+    const redStatus = await statusConnection();
+    if (!redStatus) return;
+    const token = await validarToken();
+    if (token) {
+      setIsAuthenticated(true);
+      if (!socket) connectSocket(token);
+      const { status } = await Notifications.getPermissionsAsync();
+      if (status !== "granted") {
+        const { status: newStatus } =
+          await Notifications.requestPermissionsAsync();
+        if (newStatus !== "granted") {
+          alert(
+            "Permisos de notificaciones denegados, no podrás recibir notificaciones."
+          );
+        }
+      }
+      const pushToken = (await Notifications.getExpoPushTokenAsync()).data;
+      if (pushToken) {
+        await fetch(`${apiURL}trabajador/updatePushToken`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ token: token, tokenPush: pushToken }),
+        });
+      }
+      router.dismissTo("/(lector)/home");
+    } else {
+      setIsAuthenticated(false);
+      router.replace("/_index");
+    }
+  };
+  
+  /*
+   const handleNotification = async (data: any) => {
+    const { status } = await Notifications.getPermissionsAsync();
+    if (status !== "granted") {
+      const { status: newStatus } =
+        await Notifications.requestPermissionsAsync();
+      if (newStatus !== "granted") {
+        console.warn("Permisos de notificaciones denegados");
+        return;
+      }
+    }
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: data.title || "Notificación",
+        body: data.body || "Tienes una nueva notificación",
+        data: data.data || {},
+      },
+      trigger: null,
+    });
+  };*/
+  return (
+    <AuthContext.Provider
+      value={{
+        login,
+        socket,
+        isAuthenticated,
+        obtenerUbicacion,
+        uvData,
+        checkToken,
+      }}
+    >
+      <StatusBar hidden />
+      {isAuthenticated ? <GlobalProvider>{children}</GlobalProvider> : children}
+    </AuthContext.Provider>
+  );
+};
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth debe ser usado dentro de un AuthProvider");
+  }
+  return context;
+};

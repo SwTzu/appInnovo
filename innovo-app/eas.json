@@ -1,0 +1,57 @@
+{
+  "cli": {
+    "version": ">= 10.2.2"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "AIzaSyCpsD32sxP5vkH1eBb30wOzIDmFXPipLtA",
+        "EXPO_PUBLIC_API_URL": "https://provider.blocktype.cl/"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleDebug"
+      }
+    },
+    "environment": {
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "AIzaSyCpsD32sxP5vkH1eBb30wOzIDmFXPipLtA",
+        "EXPO_PUBLIC_API_URL": "https://provider.blocktype.cl/"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease"
+      }
+    },
+    "beta": {
+      "distribution": "internal",
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "AIzaSyCpsD32sxP5vkH1eBb30wOzIDmFXPipLtA",
+        "EXPO_PUBLIC_API_URL": "https://provider.blocktype.cl/"
+      },
+      "android": {
+        "buildType": "apk",
+        "gradleCommand": ":app:assembleRelease",
+        "autoIncrement": "versionCode"
+      }
+    },
+    "production": {
+      "node": "22.13.0",
+      "distribution": "store",
+      "env": {
+        "GOOGLE_MAPS_API_KEY": "AIzaSyCpsD32sxP5vkH1eBb30wOzIDmFXPipLtA",
+        "EXPO_PUBLIC_API_URL": "https://provider.blocktype.cl/"
+      },
+      "android": {
+        "buildType": "app-bundle",
+        "gradleCommand": ":app:assembleRelease",
+        "autoIncrement": "versionCode"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
