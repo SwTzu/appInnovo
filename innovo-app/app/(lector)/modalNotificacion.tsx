@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
   StyleSheet,
   View,
@@ -12,6 +12,7 @@ import {
 import { ExternalLink, CircleX } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import type { Notificacion } from "@/types/interfaces";
+import * as SecureStore from "expo-secure-store";
 
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 
@@ -20,6 +21,21 @@ const ModalNotificacion = () => {
   const selectedNotification: Notificacion = Array.isArray(params.notification)
     ? JSON.parse(params.notification[0])
     : JSON.parse(params.notification);
+  const [accessToken, setAccessToken] = useState<string>("");
+  const isNotificationImage =
+    selectedNotification?.url?.endsWith(".jpg") ||
+    selectedNotification?.url?.endsWith(".jpeg") ||
+    selectedNotification?.url?.endsWith(".png");
+
+  useEffect(() => {
+    SecureStore.getItemAsync("token")
+      .then((token) => setAccessToken(token || ""))
+      .catch(() => setAccessToken(""));
+  }, []);
+
+  const notificationAssetUrl = `${apiUrl}${selectedNotification?.url ?? ""}${
+    accessToken ? `?access_token=${encodeURIComponent(accessToken)}` : ""
+  }`;
 
   const handleOpenURL = (url: string) => {
     Alert.alert(
@@ -89,27 +105,26 @@ const ModalNotificacion = () => {
 
           {/* Mostrar imagen o botón de enlace según la URL */}
           {selectedNotification?.url &&
-            (selectedNotification.url.endsWith(".jpg") ||
-            selectedNotification.url.endsWith(".jpeg") ||
-            selectedNotification.url.endsWith(".png") ? (
+            (isNotificationImage ? (
               <Image
                 source={{
-                  uri: `${apiUrl}DOCS_NOTIFICACIONES${
-                    selectedNotification.url.split("/DOCS_NOTIFICACIONES")[1]
-                  }`,
+                  uri: notificationAssetUrl,
                 }}
                 style={styles.modalImage}
               />
             ) : (
               <TouchableOpacity
                 style={styles.urlButton}
-                onPress={() =>
+                onPress={async () => {
+                  const token = await SecureStore.getItemAsync("token");
+                  if (!token) {
+                    Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para abrir el documento.");
+                    return;
+                  }
                   handleOpenURL(
-                    `${apiUrl}DOCS_NOTIFICACIONES${
-                      selectedNotification.url.split("/DOCS_NOTIFICACIONES")[1]
-                    }`
-                  )
-                }
+                    `${apiUrl}${selectedNotification.url}?access_token=${encodeURIComponent(token)}`
+                  );
+                }}
               >
                 <ExternalLink size={20} color="#FFFFFF" />
                 <Text style={styles.urlButtonText}>Abrir enlace</Text>

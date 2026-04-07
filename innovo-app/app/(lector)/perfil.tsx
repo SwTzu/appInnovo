@@ -23,6 +23,7 @@ import { Image } from "expo-image";
 import { getPerfil, updatePerfil } from "@/api/trabajador";
 import type { DatoPerfil, Documento } from "@/types/interfaces";
 import * as ImagePicker from "expo-image-picker";
+import * as SecureStore from "expo-secure-store";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 const scale = SCREEN_WIDTH / 375;
@@ -97,11 +98,16 @@ export default function PerfilScreen() {
         <TouchableOpacity
           key={doc._id}
           style={styles.documentItem}
-          onPress={() =>
-          handleOpenURL(
-            `${apiUrl}TRABAJADORES${doc.url.split("/TRABAJADORES")[1]}`
-          )
-          }
+          onPress={async () => {
+            const token = await SecureStore.getItemAsync("token");
+            if (!token) {
+              Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para abrir el documento.");
+              return;
+            }
+            handleOpenURL(
+              `${apiUrl}${doc.url}?access_token=${encodeURIComponent(token)}`
+            );
+          }}
         >
           <FileText size={24} color="#0057b7" />
           <View style={styles.documentItemContent}>

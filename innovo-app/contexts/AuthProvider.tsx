@@ -8,6 +8,7 @@ import React, {
 import { useCameraPermissions } from "expo-camera";
 import { Alert } from "react-native";
 import { loginApi } from "@/api/standar";
+import { refreshSessionApi } from "@/api/standar";
 import {getUV} from "@/api/trabajador";
 import * as SecureStore from "expo-secure-store";
 import { router } from "expo-router";
@@ -199,7 +200,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     }
     const socketInstance = io(apiURL, {
       transports: ["websocket"],
-      query: { token },
+      auth: { token },
       reconnection: true, // Reconexión automática
       reconnectionAttempts: 10, // Número de intentos de reconexión
       reconnectionDelay: 3000, // Tiempo entre intentos (en ms)
@@ -272,11 +273,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
         alert("❌ Error al obtener información del dispositivo.");
         return;
       }
-      const token = await loginApi(rut, password, deviceID, pushToken); // Enviar el pushToken al backend
-      if (token) {
-        await SecureStore.setItemAsync("token", token);
+      const session = await loginApi(rut, password, deviceID, pushToken); // Enviar el pushToken al backend
+      if (session?.token) {
+        await SecureStore.setItemAsync("token", session.token);
+        if (session.refreshToken) {
+          await SecureStore.setItemAsync("refreshToken", session.refreshToken);
+        }
         setIsAuthenticated(true);
-        if (!socket) connectSocket(token);
+        if (!socket) connectSocket(session.token);
         router.dismissTo("/(lector)/home");
       } else {
         alert("❌ Usuario o contraseña incorrectos.");
@@ -289,7 +293,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   const checkToken = async () => {
     const redStatus = await statusConnection();
     if (!redStatus) return;
-    const token = await validarToken();
+    let token = await validarToken();
+    if (!token) {
+      const refreshedSession = await refreshSessionApi();
+      if (refreshedSession && refreshedSession.token) {
+        token = refreshedSession.token;
+        await SecureStore.setItemAsync("token", refreshedSession.token);
+        if (refreshedSession.refreshToken) {
+          await SecureStore.setItemAsync("refreshToken", refreshedSession.refreshToken);
+        }
+      }
+    }
     if (token) {
       setIsAuthenticated(true);
       if (!socket) connectSocket(token);
