@@ -14,6 +14,7 @@
   },
   "dependencies": {
     "@expo/vector-icons": "14.0.2",
+    "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/native": "^7.0.14",
     "dayjs": "1.11.13",
     "expo": "~52.0.31",
@@ -22,6 +23,7 @@
     "expo-constants": "~17.0.5",
     "expo-dev-client": "~5.0.12",
     "expo-font": "13.0.3",
+    "expo-image": "~2.0.4",
     "expo-image-picker": "~16.0.5",
     "expo-linking": "~7.0.5",
     "expo-location": "18.0.5",
@@ -33,7 +35,7 @@
     "expo-status-bar": "2.0.1",
     "expo-system-ui": "~4.0.8",
     "expo-web-browser": "14.0.2",
-    "lodash": "4.17.21",
+    "lodash": "4.18.1",
     "lucide-react-native": "0.471.0",
     "metro": "0.81.0",
     "metro-core": "0.81.0",
@@ -50,9 +52,7 @@
     "react-native-svg": "15.8.0",
     "react-native-web": "0.19.13",
     "react-rut-formatter": "0.2.2",
-    "socket.io-client": "4.8.1",
-    "@react-native-community/netinfo": "11.4.1",
-    "expo-image": "~2.0.4"
+    "socket.io-client": "4.8.1"
   },
   "devDependencies": {
     "@babel/core": "7.25.2",
