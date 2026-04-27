@@ -339,9 +339,13 @@ export const getUV = async (ubicacion: { lat: number; lng: number }) => {
     if (response.ok) {
       const data = await response.json();
       return data;
-    } else {
-      throw new Error("Error al obtener los datos de la UV");
     }
+
+    console.warn("No se pudieron obtener los datos de la UV", {
+      status: response.status,
+      statusText: response.statusText,
+    });
+    return null;
   } catch (error) {
     console.warn("Error al obtener los datos de la UV", error);
     return null;

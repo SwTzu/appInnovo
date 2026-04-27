@@ -96,14 +96,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       try {
         const ubicacion = (await obtenerUbicacion()) ?? DEFAULT_UV_LOCATION;
         const uvData = await getUV(ubicacion);
-                if (!Array.isArray(uvData)) {
-                  console.warn("Datos UV no disponibles para la ubicación:", ubicacion);
-                  return;
-                }
+        if (!Array.isArray(uvData)) {
+          console.warn("Datos UV no disponibles para la ubicación:", ubicacion);
+          return;
+        }
         setUvData({ indiceUV_h: uvData[0], indiceUV_m: uvData[1] });
       } catch (error) {
-        console.warn("Error al obtener los datos de la UV", error);
-        return null;
+        console.warn("No se pudieron cargar los datos UV:", error);
       }
     };
     if (!isAuthenticated) return;
