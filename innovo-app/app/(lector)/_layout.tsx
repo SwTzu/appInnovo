@@ -1,13 +1,27 @@
-import React, { useState, useEffect } from "react";
-import { View, StyleSheet, TouchableOpacity, Keyboard, Text} from "react-native";
-import { Stack, useRouter, useSegments, usePathname } from "expo-router";
-import { House, MapPinned, UserRound, ClipboardPen} from "lucide-react-native";
+import React, { useEffect, useMemo, useState } from "react";
+import { Keyboard, Pressable, StyleSheet, Text, View } from "react-native";
+import { Href, Stack, usePathname, useRouter, useSegments } from "expo-router";
+import { ClipboardPen, House, MapPinned, UserRound } from "lucide-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Nati from "@/components/btnNoti";
+import { colors, fontSizes, radius, shadows, spacing } from "@/constants/theme";
+
+const navItems = [
+  { route: "/(lector)/novedad" as Href, segment: "novedad", label: "Novedad", icon: ClipboardPen },
+  { route: "/(lector)/home" as Href, segment: "home", label: "Inicio", icon: House },
+  { route: "/(lector)/ruta" as Href, segment: "ruta", label: "Ruta", icon: MapPinned },
+  { route: "/(lector)/perfil" as Href, segment: "perfil", label: "Perfil", icon: UserRound },
+];
+
+const hiddenRoutes = ["modalCam", "modalAte", "modalNotificacion", "modalNotificaciones", "modalCalendar"];
+
 export default function LectorLayout() {
   const router = useRouter();
-  const rutaActual= usePathname();
-  const segments = useSegments() as string[]; // Saber en qué ruta estamos actualmente
+  const pathname = usePathname();
+  const segments = useSegments() as string[];
+  const insets = useSafeAreaInsets();
   const [isKeyboardVisible, setKeyboardVisible] = useState(false);
+
   useEffect(() => {
     const showSubscription = Keyboard.addListener("keyboardDidShow", () => {
       setKeyboardVisible(true);
@@ -21,35 +35,27 @@ export default function LectorLayout() {
       hideSubscription.remove();
     };
   }, []);
+
+  const shouldShowChrome = useMemo(
+    () => !isKeyboardVisible && !hiddenRoutes.some((route) => pathname.endsWith(route)),
+    [isKeyboardVisible, pathname]
+  );
+
   return (
     <View style={styles.container}>
-      <Nati/>
+      {shouldShowChrome ? <Nati /> : null}
       <View style={styles.content}>
-        <Stack >
-          <Stack.Screen
-            name="home"
-            options={{ title: "Home", headerShown: false }}
-          />
-          <Stack.Screen
-            name="novedad"
-            options={{ title: "Novedad", headerShown: false }}
-            
-          />
-          <Stack.Screen
-            name="ruta"
-            options={{ title: "Ruta", headerShown: false }}
-          />
-          <Stack.Screen
-            name="perfil"
-            options={{ title: "Perfil", headerShown: false }}
-          />
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="home" options={{ title: "Home" }} />
+          <Stack.Screen name="novedad" options={{ title: "Novedad" }} />
+          <Stack.Screen name="ruta" options={{ title: "Ruta" }} />
+          <Stack.Screen name="perfil" options={{ title: "Perfil" }} />
           <Stack.Screen
             name="modalAte"
             options={{
               title: "Atenciones Especiales",
               presentation: "transparentModal",
               animation: "fade",
-              headerShown: false,
             }}
           />
           <Stack.Screen
@@ -57,8 +63,7 @@ export default function LectorLayout() {
             options={{
               title: "Notificaciones",
               presentation: "card",
-              animation: 'fade',
-              headerShown: false,
+              animation: "fade",
             }}
           />
           <Stack.Screen
@@ -67,7 +72,6 @@ export default function LectorLayout() {
               title: "Notificacion",
               presentation: "transparentModal",
               animation: "fade",
-              headerShown: false,
             }}
           />
           <Stack.Screen
@@ -76,7 +80,6 @@ export default function LectorLayout() {
               title: "Calendario",
               presentation: "transparentModal",
               animation: "fade",
-              headerShown: false,
             }}
           />
           <Stack.Screen
@@ -84,49 +87,39 @@ export default function LectorLayout() {
             options={{
               title: "Camera",
               presentation: "fullScreenModal",
-              animation: 'fade',
-              headerShown: false,
+              animation: "fade",
             }}
           />
         </Stack>
-        {!isKeyboardVisible &&
-           rutaActual!=='/modalCam'&& rutaActual!=='/modalAte'&&rutaActual!=='/modalNotificacion'&& ( // Ocultar barra si la cámara está activa
-            <View style={styles.navbar}>
-              <TouchableOpacity
-                onPress={() => router.push("/(lector)/novedad")}
-              >
-                <ClipboardPen
-                  size={24}
-                  color={segments.includes("novedad") ? "#007aff" : "black"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/(lector)/home")}
-              >
-                <House
-                  size={24}
-                  color={segments.includes("home") ? "#007aff" : "black"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/(lector)/ruta")}
-              >
-                <MapPinned
-                  size={24}
-                  color={segments.includes("ruta") ? "#007aff" : "black"}
-                />
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => router.push("/(lector)/perfil")}
-              >
-                <UserRound
-                  size={24}
-                  color={segments.includes("perfil") ? "#007aff" : "black"}
-                />
-              </TouchableOpacity>
-            </View>
-          )}
       </View>
+      {shouldShowChrome ? (
+        <View style={[styles.navbarWrap, { paddingBottom: Math.max(insets.bottom, spacing.sm) }]}>
+          <View style={styles.navbar}>
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const active = segments.includes(item.segment);
+              return (
+                <Pressable
+                key={item.segment}
+                  accessibilityRole="button"
+                  accessibilityLabel={item.label}
+                  onPress={() => router.push(item.route)}
+                  style={({ pressed }) => [
+                    styles.navItem,
+                    active && styles.navItemActive,
+                    pressed && styles.navItemPressed,
+                  ]}
+                >
+                  <Icon size={22} color={active ? colors.white : colors.textMuted} strokeWidth={2.4} />
+                  <Text style={[styles.navLabel, active && styles.navLabelActive]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -134,24 +127,48 @@ export default function LectorLayout() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: colors.background,
   },
   content: {
     flex: 1,
   },
+  navbarWrap: {
+    backgroundColor: colors.background,
+    paddingHorizontal: spacing.lg,
+    paddingTop: spacing.sm,
+  },
   navbar: {
+    minHeight: 72,
     flexDirection: "row",
-    justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#f0f0f0",
-    paddingVertical: 10,
-    borderTopWidth: 1,
-    borderTopColor: "#ccc",
+    justifyContent: "space-between",
+    backgroundColor: colors.surface,
+    borderRadius: radius.xxl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.sm,
+    ...shadows.floating,
   },
   navItem: {
-    color: "#007aff",
+    flex: 1,
+    minHeight: 56,
+    borderRadius: radius.xl,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
   },
-  active: {
-    color: "black",
-    textDecorationLine: "underline",
+  navItemActive: {
+    backgroundColor: colors.brand,
+  },
+  navItemPressed: {
+    opacity: 0.78,
+  },
+  navLabel: {
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
+    fontWeight: "800",
+  },
+  navLabelActive: {
+    color: colors.white,
   },
 });

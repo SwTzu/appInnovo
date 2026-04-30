@@ -1,31 +1,43 @@
 import React from "react";
-import { StyleSheet, TouchableOpacity, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { Bell } from "lucide-react-native";
 import { router, usePathname } from "expo-router";
+import { colors, radius, shadows, spacing } from "@/constants/theme";
+import { IconButton } from "@/components/ui";
+
+const hiddenRoutes = ["modalNotificaciones", "modalCam", "modalNotificacion"];
+
 export default function Noti() {
-    const rutaActual= usePathname();
+  const pathname = usePathname();
+  const hidden = hiddenRoutes.some((route) => pathname.endsWith(route));
+
+  if (hidden) {
+    return null;
+  }
+
   return (
-    rutaActual !== "/modalNotificaciones" && rutaActual !== "/modalCam"&& rutaActual !== "/modalNotificacion" ? (
-      <TouchableOpacity
-        style={styles.btnNoti}
+    <View style={styles.wrap} pointerEvents="box-none">
+      <IconButton
+        label="Abrir notificaciones"
+        variant="solid"
+        size={52}
+        icon={<Bell size={24} color={colors.white} />}
         onPress={() => router.push("/(lector)/modalNotificaciones")}
-      >
-        <Bell size={32} color="white"/>
-      </TouchableOpacity>
-    ) : null
+        style={styles.button}
+      />
+    </View>
   );
 }
+
 const styles = StyleSheet.create({
-  btnNoti: {
-    width: 50,
-    height: 50,
-    borderRadius: 50,
-    backgroundColor: "#0057b7",
-    justifyContent: "center",
-    alignItems: "center",
+  wrap: {
     position: "absolute",
-    right: 10,
-    top: 10,
-    zIndex: 1,
+    right: spacing.lg,
+    top: spacing.xl,
+    zIndex: 10,
+  },
+  button: {
+    borderRadius: radius.pill,
+    ...shadows.floating,
   },
 });

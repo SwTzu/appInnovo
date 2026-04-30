@@ -1,100 +1,143 @@
-import { ThermometerSun } from "lucide-react-native";
-import React, { useEffect, useState, useCallback } from "react";
-import { View, Text, StyleSheet } from "react-native";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { ShieldCheck, ThermometerSun } from "lucide-react-native";
 import { useAuth } from "@/contexts/AuthProvider";
+import { Badge, Card } from "@/components/ui";
+import { colors, fontSizes, radius, spacing } from "@/constants/theme";
+
+const getUvTone = (value: number) => {
+  if (value >= 8) {
+    return {
+      label: "Alto",
+      color: colors.danger,
+      backgroundColor: colors.dangerSoft,
+      badge: "danger" as const,
+    };
+  }
+
+  if (value >= 5) {
+    return {
+      label: "Moderado",
+      color: colors.warning,
+      backgroundColor: colors.warningSoft,
+      badge: "warning" as const,
+    };
+  }
+
+  return {
+    label: "Controlado",
+    color: colors.success,
+    backgroundColor: colors.successSoft,
+    badge: "success" as const,
+  };
+};
+
 const IndiceUV: React.FC = () => {
-  const { uvData} = useAuth(); 
+  const { uvData } = useAuth();
+  const todayTone = getUvTone(Number(uvData.indiceUV_h || 0));
+
   return (
-    <View style={styles.container_indice}>
-      <View style={styles.bloque_indice}>
-        <ThermometerSun size={34} color="black" style={styles.iconUv} />
-        <View style={styles.indice_bloque}>
-          <Text style={styles.cardContent}>{"Máxima\nhoy"}</Text>
-          <Text style={styles.cardTitle}>{uvData.indiceUV_h}</Text>
+    <Card style={styles.card}>
+      <View style={styles.header}>
+        <View style={styles.iconShell}>
+          <ThermometerSun size={26} color={colors.brand} />
         </View>
-        <View style={styles.separator} />
-        <View style={styles.indice_bloque}>
-          <Text style={styles.cardContent}>{"Máxima\nmañana"}</Text>
-          <Text style={styles.cardTitle}>{uvData.indiceUV_m}</Text>
-          <Text style={styles.indice_url}>indiceuv.cl</Text>
+        <View style={styles.headerText}>
+          <Text style={styles.title}>Índice UV</Text>
+          <Text style={styles.subtitle}>Máximas estimadas para la jornada.</Text>
+        </View>
+        <Badge label={todayTone.label} tone={todayTone.badge} />
+      </View>
+
+      <View style={styles.values}>
+        <View style={[styles.valueBlock, { backgroundColor: todayTone.backgroundColor }]}>
+          <Text style={styles.valueLabel}>Hoy</Text>
+          <Text style={[styles.valueNumber, { color: todayTone.color }]}>
+            {uvData.indiceUV_h ?? 0}
+          </Text>
+        </View>
+        <View style={styles.valueBlock}>
+          <Text style={styles.valueLabel}>Mañana</Text>
+          <Text style={styles.valueNumber}>{uvData.indiceUV_m ?? 0}</Text>
         </View>
       </View>
-      <View style={styles.tag}>
-        <Text style={styles.tag_text}>
-          Se recomienda el uso de protector solar.
+
+      <View style={styles.recommendation}>
+        <ShieldCheck size={18} color={colors.warning} />
+        <Text style={styles.recommendationText}>
+          Usar protector solar y mantener hidratación en ruta.
         </Text>
       </View>
-    </View>
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
-  container_indice: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    flexDirection: "column",
-    justifyContent: "center",
-    maxHeight: "30%", //estandarizar
-    marginHorizontal: 10, //estandarizar
-    marginTop: 10, //estandarizar
+  card: {
+    gap: spacing.lg,
   },
-  bloque_indice: {
-    backgroundColor: "transparent",
+  header: {
     flexDirection: "row",
-    justifyContent: "center",
-  },
-  cardTitle: {
-    fontSize: 48, //estandarizar
-    fontWeight: "bold",
-    color: "black",
-    marginBottom: 20, //estandarizar
-  },
-  cardContent: {
-    fontSize: 22, //estandarizar
-    color: "black",
-    textAlign: "center",
-  },
-  indice_bloque: {
-    marginTop: 10,
-    fontSize: 18, //estandarizar
-    fontWeight: "bold",
-    width: "50%",
-    justifyContent: "center",
     alignItems: "center",
-    borderBottomWidth: 2,
-    borderColor: "#e7e7e7",
+    gap: spacing.md,
   },
-  iconUv: {
-    width: 50,
-    height: 50,
-    position: "absolute",
-    top: 0,
-    left: 0,
+  iconShell: {
+    width: 48,
+    height: 48,
+    borderRadius: radius.lg,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brandSoft,
   },
-  indice_url: {
-    fontSize: 18, //estandarizar
-    color: "black",
-    position: "absolute",
-    bottom: 0,
-    right: 5,
+  headerText: {
+    flex: 1,
   },
-  tag: {
-    margin: 10,
-    backgroundColor: "#ffc0c0",
-    borderRadius: 12,
+  title: {
+    color: colors.text,
+    fontSize: fontSizes.lg,
+    fontWeight: "900",
   },
-  tag_text: {
-    fontSize: 13, //estandarizar
-    fontWeight: "bold",
-    color: "#ff5757",
-    textAlign: "center",
+  subtitle: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    marginTop: spacing.xs,
   },
-  separator: {
-    backgroundColor: "#e7e7e7",
-    height: "80%",
-    position: "absolute",
-    alignSelf: "center",
-    width: 2,
+  values: {
+    flexDirection: "row",
+    gap: spacing.md,
+  },
+  valueBlock: {
+    flex: 1,
+    minHeight: 112,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    backgroundColor: colors.surfaceMuted,
+    justifyContent: "space-between",
+  },
+  valueLabel: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: "800",
+  },
+  valueNumber: {
+    color: colors.text,
+    fontSize: 44,
+    fontWeight: "900",
+  },
+  recommendation: {
+    minHeight: 42,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.warningSoft,
+  },
+  recommendationText: {
+    flex: 1,
+    color: colors.warning,
+    fontSize: fontSizes.sm,
+    fontWeight: "800",
   },
 });
 

@@ -1,65 +1,92 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { StyleSheet, View, Text, TouchableOpacity } from "react-native";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { StyleSheet, Text, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from "react-native-maps";
 import * as Location from "expo-location";
-import { CircleUserRound, MapPin } from "lucide-react-native";
+import { CircleUserRound, LocateFixed, MapPin, Route } from "lucide-react-native";
 import { router } from "expo-router";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useGlobalContext } from "@/contexts/GlobalContext";
-import type{ Ate } from "@/types/interfaces";
+import type { Ate } from "@/types/interfaces";
+import { Badge, IconButton } from "@/components/ui";
+import { colors, fontSizes, radius, shadows, spacing } from "@/constants/theme";
+
 export default function Map() {
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const { setNewAte, dataAte } = useGlobalContext();
   const mapViewRef = useRef<MapView>(null);
-  const initialRegion = useMemo(() => ({
-    latitude: -33.04806072577398,
-    longitude: -71.44460058399616,
-    latitudeDelta: 0.005,
-    longitudeDelta: 0.005,
-  }), []);
+  const insets = useSafeAreaInsets();
+  const initialRegion = useMemo(
+    () => ({
+      latitude: -33.04806072577398,
+      longitude: -71.44460058399616,
+      latitudeDelta: 0.005,
+      longitudeDelta: 0.005,
+    }),
+    []
+  );
   const [region, setRegion] = useState<Region>(initialRegion);
-  const handlerAte = useCallback((item: Ate) => {
-    setNewAte(item);
-    router.push("/(lector)/modalAte");
-  }, [setNewAte]);
+
+  const handlerAte = useCallback(
+    (item: Ate) => {
+      setNewAte(item);
+      router.push("/(lector)/modalAte");
+    },
+    [setNewAte]
+  );
+
+  const routePoints = useMemo(
+    () => dataAte.filter((punto) => typeof punto.lat === "number" && typeof punto.lng === "number"),
+    [dataAte]
+  );
+
   const memoizedMarkers = useMemo(() => {
-    return dataAte.map((punto, index) => (
+    return routePoints.map((punto, index) => (
       <Marker
-        key={index}
+        key={punto.id_ate ?? index}
         coordinate={{
           latitude: punto.lat || 0,
           longitude: punto.lng || 0,
         }}
-        title="Detalles de la Atención especial"
+        title={punto.tipo || "Atención especial"}
+        description={punto.direccion || "Ver detalle"}
         onCalloutPress={() => handlerAte(punto)}
       >
         <View style={styles.routeMarkerContainer}>
           <View style={styles.routeMarker}>
-            <MapPin color="#ffffff" size={24} />
+            <MapPin color={colors.white} size={22} />
           </View>
           <View style={styles.routeMarkerShadow} />
         </View>
       </Marker>
     ));
-  }, [dataAte, handlerAte]);
+  }, [routePoints, handlerAte]);
+
   useEffect(() => {
+    let subscription: Location.LocationSubscription | null = null;
+    let mounted = true;
+
     const setupLocation = async () => {
-      let { status } = await Location.requestForegroundPermissionsAsync();
+      const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
-        setErrorMsg("Permission to access location was denied");
+        setErrorMsg("Permiso de ubicación denegado");
         return;
       }
+
       const currentLocation = await Location.getCurrentPositionAsync({});
-      setLocation(currentLocation);
-      if (currentLocation) {
-        setRegion({
-          latitude: currentLocation.coords.latitude,
-          longitude: currentLocation.coords.longitude,
-          latitudeDelta: 0.005,
-          longitudeDelta: 0.005,
-        });
+      if (!mounted) {
+        return;
       }
-      Location.watchPositionAsync(
+
+      setLocation(currentLocation);
+      setRegion({
+        latitude: currentLocation.coords.latitude,
+        longitude: currentLocation.coords.longitude,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      });
+
+      subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
           distanceInterval: 10,
@@ -68,8 +95,29 @@ export default function Map() {
         (update) => setLocation(update)
       );
     };
+
     setupLocation();
+
+    return () => {
+      mounted = false;
+      subscription?.remove();
+    };
   }, []);
+
+  const recenter = () => {
+    if (location && mapViewRef.current) {
+      mapViewRef.current.animateToRegion(
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        },
+        700
+      );
+    }
+  };
+
   return (
     <View style={styles.container}>
       <MapView
@@ -78,6 +126,7 @@ export default function Map() {
         ref={mapViewRef}
         initialRegion={initialRegion}
         region={region}
+        onRegionChangeComplete={setRegion}
       >
         {location && (
           <Marker
@@ -95,35 +144,41 @@ export default function Map() {
               <View style={styles.userLocationMiddleRing} />
               <CircleUserRound
                 size={32}
-                color="#4285F4"
-                style={{ backgroundColor: "white", borderRadius: 16 }}
+                color={colors.info}
+                style={styles.userIcon}
               />
             </View>
           </Marker>
         )}
         {memoizedMarkers}
       </MapView>
-      {errorMsg && <Text style={styles.errorText}>{errorMsg}</Text>}
-      <TouchableOpacity
-        style={styles.recenterButton}
-        onPress={() => {
-          if (location && mapViewRef.current) {
-            mapViewRef.current.animateToRegion({
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-              latitudeDelta: 0.005,
-              longitudeDelta: 0.005,
-            }, 1000);
-          }
-        }}
-      >
-        <View style={styles.recenterButtonInner}>
-          <View style={styles.recenterButtonIcon} />
+
+      <View style={[styles.topPanel, { top: insets.top + spacing.md }]}>
+        <View style={styles.panelIcon}>
+          <Route size={22} color={colors.brand} />
         </View>
-      </TouchableOpacity>
+        <View style={styles.panelText}>
+          <Text style={styles.panelTitle}>Ruta en terreno</Text>
+          <Text style={styles.panelSubtitle}>Ubicación actual y ATE pendientes</Text>
+        </View>
+        <Badge label={`${routePoints.length}`} tone={routePoints.length > 0 ? "warning" : "success"} />
+      </View>
+
+      {errorMsg ? <Text style={styles.errorText}>{errorMsg}</Text> : null}
+
+      <View style={[styles.recenterButton, { bottom: spacing.xxl }]}>
+        <IconButton
+          label="Centrar mapa"
+          variant="solid"
+          size={54}
+          icon={<LocateFixed color={colors.white} size={24} />}
+          onPress={recenter}
+        />
+      </View>
     </View>
   );
 }
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -132,6 +187,42 @@ const styles = StyleSheet.create({
   },
   map: {
     flex: 1,
+  },
+  topPanel: {
+    position: "absolute",
+    left: spacing.lg,
+    right: spacing.lg,
+    minHeight: 72,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.xl,
+    borderWidth: 1,
+    borderColor: colors.border,
+    padding: spacing.md,
+    ...shadows.floating,
+  },
+  panelIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: radius.lg,
+    backgroundColor: colors.brandSoft,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  panelText: {
+    flex: 1,
+  },
+  panelTitle: {
+    color: colors.text,
+    fontSize: fontSizes.md,
+    fontWeight: "900",
+  },
+  panelSubtitle: {
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
+    marginTop: spacing.xs,
   },
   userLocationMarker: {
     width: 50,
@@ -144,48 +235,27 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: "rgba(66, 133, 244, 0.1)",
+    backgroundColor: "rgba(8, 119, 201, 0.12)",
   },
   userLocationMiddleRing: {
     position: "absolute",
     width: 39,
     height: 39,
     borderRadius: 18,
-    backgroundColor: "rgba(66, 133, 244, 0.2)",
+    backgroundColor: "rgba(8, 119, 201, 0.22)",
   },
-  userLocationDot: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "#4285F4",
-    borderWidth: 3,
-    borderColor: "white",
-  },
-  userLocationArrow: {
-    position: "absolute",
-    width: 0,
-    height: 0,
-    backgroundColor: "transparent",
-    borderStyle: "solid",
-    borderLeftWidth: 8,
-    borderRightWidth: 8,
-    borderBottomWidth: 24,
-    borderLeftColor: "transparent",
-    borderRightColor: "transparent",
-    borderBottomColor: "#4285F4",
+  userIcon: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
   },
   routeMarkerContainer: {
     alignItems: "center",
   },
   routeMarker: {
-    backgroundColor: "#0057b7",
-    borderRadius: 8,
-    padding: 8,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
+    backgroundColor: colors.brand,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    ...shadows.card,
   },
   routeMarkerShadow: {
     width: 8,
@@ -197,47 +267,24 @@ const styles = StyleSheet.create({
     borderTopWidth: 16,
     borderLeftColor: "transparent",
     borderRightColor: "transparent",
-    borderTopColor: "#0057b7",
+    borderTopColor: colors.brand,
     marginTop: -4,
   },
   recenterButton: {
     position: "absolute",
-    right: 16,
-    bottom: "8%",
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "white",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recenterButtonInner: {
-    width: 24,
-    height: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  recenterButtonIcon: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#4285F4",
-    borderWidth: 3,
-    borderColor: "#4285F4",
+    right: spacing.lg,
   },
   errorText: {
     position: "absolute",
     bottom: 100,
     alignSelf: "center",
-    color: "red",
-    fontSize: 14,
-    backgroundColor: "rgba(255, 255, 255, 0.9)",
-    padding: 8,
-    borderRadius: 4,
+    color: colors.danger,
+    fontSize: fontSizes.sm,
+    fontWeight: "800",
+    backgroundColor: colors.surface,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    overflow: "hidden",
   },
 });

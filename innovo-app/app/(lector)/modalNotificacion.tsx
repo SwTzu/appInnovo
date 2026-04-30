@@ -1,27 +1,40 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  Text,
-  TouchableOpacity,
+  Alert,
   Image,
   Linking,
   ScrollView,
-  Alert,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
-import { ExternalLink, CircleX } from "lucide-react-native";
 import { router, useLocalSearchParams } from "expo-router";
-import type { Notificacion } from "@/types/interfaces";
+import { CircleX, ExternalLink, FileText } from "lucide-react-native";
 import * as SecureStore from "expo-secure-store";
+import type { Notificacion } from "@/types/interfaces";
+import { AppButton, AppHeader, IconButton, ModalSheet } from "@/components/ui";
+import { colors, fontSizes, radius, spacing } from "@/constants/theme";
 
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 
+const parseNotification = (notification?: string | string[]) => {
+  const raw = Array.isArray(notification) ? notification[0] : notification;
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as Notificacion;
+  } catch {
+    return null;
+  }
+};
+
 const ModalNotificacion = () => {
   const params = useLocalSearchParams();
-  const selectedNotification: Notificacion = Array.isArray(params.notification)
-    ? JSON.parse(params.notification[0])
-    : JSON.parse(params.notification);
-  const [accessToken, setAccessToken] = useState<string>("");
+  const selectedNotification = useMemo(
+    () => parseNotification(params.notification),
+    [params.notification]
+  );
+  const [accessToken, setAccessToken] = useState("");
   const isNotificationImage =
     selectedNotification?.url?.endsWith(".jpg") ||
     selectedNotification?.url?.endsWith(".jpeg") ||
@@ -40,12 +53,9 @@ const ModalNotificacion = () => {
   const handleOpenURL = (url: string) => {
     Alert.alert(
       "Aceptar términos",
-      "Al abrir el enlace, se acepta tanto la recepción de la información como el estar en total conocimiento del contenido.",
+      "Al abrir el enlace, aceptas la recepción de la información y declaras conocer su contenido.",
       [
-        {
-          text: "Cancelar",
-          style: "cancel",
-        },
+        { text: "Cancelar", style: "cancel" },
         {
           text: "Abrir",
           onPress: () =>
@@ -57,21 +67,15 @@ const ModalNotificacion = () => {
       { cancelable: true }
     );
   };
+
   const handlerClose = () => {
-    if (!selectedNotification.estado&&selectedNotification.tipo!='msg') {
+    if (selectedNotification && !selectedNotification.estado && selectedNotification.tipo !== "msg") {
       Alert.alert(
         "Aceptar términos",
-        "Al cerrar este mensaje, se acepta tanto la recepción de la información como el estar en total conocimiento del contenido.\nDecea continuar?",
-       
+        "Al cerrar este mensaje, aceptas la recepción de la información y declaras conocer su contenido. ¿Deseas continuar?",
         [
-          {
-            text: "Cancelar",
-            style: "cancel",
-          },
-          {
-            text: "Continuar",
-            onPress: () => router.back(),
-          },
+          { text: "Cancelar", style: "cancel" },
+          { text: "Continuar", onPress: () => router.back() },
         ],
         { cancelable: true }
       );
@@ -79,131 +83,93 @@ const ModalNotificacion = () => {
       router.back();
     }
   };
+
+  if (!selectedNotification) {
+    return (
+      <ModalSheet>
+        <AppHeader
+          title="Notificación no disponible"
+          subtitle="No se pudo abrir el contenido solicitado."
+          icon={<FileText size={22} color={colors.brand} />}
+        />
+        <AppButton title="Volver" onPress={() => router.back()} />
+      </ModalSheet>
+    );
+  }
+
   return (
-    <View style={styles.modalOverlay}>
-      <View style={styles.modalContent}>
-        <TouchableOpacity style={styles.closeButton} onPress={handlerClose}>
-          <CircleX size={24} color="gray" />
-        </TouchableOpacity>
-
-        <ScrollView
-          contentContainerStyle={styles.scrollViewContent}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>
-              {selectedNotification?.titulo}
-            </Text>
-          </View>
-          <Text style={styles.modalMessage}>
-            {selectedNotification?.mensaje}
-          </Text>
-          <Text style={styles.modalContentText}>
-            {selectedNotification?.contenido}
-          </Text>
-
-          {/* Mostrar imagen o botón de enlace según la URL */}
-          {selectedNotification?.url &&
-            (isNotificationImage ? (
-              <Image
-                source={{
-                  uri: notificationAssetUrl,
-                }}
-                style={styles.modalImage}
-              />
-            ) : (
-              <TouchableOpacity
-                style={styles.urlButton}
-                onPress={async () => {
-                  const token = await SecureStore.getItemAsync("token");
-                  if (!token) {
-                    Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para abrir el documento.");
-                    return;
-                  }
-                  handleOpenURL(
-                    `${apiUrl}${selectedNotification.url}?access_token=${encodeURIComponent(token)}`
-                  );
-                }}
-              >
-                <ExternalLink size={20} color="#FFFFFF" />
-                <Text style={styles.urlButtonText}>Abrir enlace</Text>
-              </TouchableOpacity>
-            ))}
-        </ScrollView>
+    <ModalSheet style={styles.sheet}>
+      <View style={styles.close}>
+        <IconButton
+          label="Cerrar notificación"
+          variant="plain"
+          size={40}
+          icon={<CircleX size={22} color={colors.textMuted} />}
+          onPress={handlerClose}
+        />
       </View>
-    </View>
+
+      <ScrollView
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        <AppHeader
+          title={selectedNotification.titulo || "Notificación"}
+          subtitle={selectedNotification.mensaje || undefined}
+          icon={<FileText size={22} color={colors.brand} />}
+        />
+
+        {selectedNotification.contenido ? (
+          <Text style={styles.contentText}>{selectedNotification.contenido}</Text>
+        ) : null}
+
+        {selectedNotification.url && isNotificationImage ? (
+          <Image source={{ uri: notificationAssetUrl }} style={styles.modalImage} />
+        ) : null}
+
+        {selectedNotification.url && !isNotificationImage ? (
+          <AppButton
+            title="Abrir enlace"
+            icon={<ExternalLink size={20} color={colors.white} />}
+            onPress={async () => {
+              const token = await SecureStore.getItemAsync("token");
+              if (!token) {
+                Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para abrir el documento.");
+                return;
+              }
+              handleOpenURL(`${apiUrl}${selectedNotification.url}?access_token=${encodeURIComponent(token)}`);
+            }}
+          />
+        ) : null}
+      </ScrollView>
+    </ModalSheet>
   );
 };
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-    justifyContent: "center",
-    alignItems: "center",
-    width: "100%",
+  sheet: {
+    maxHeight: "90%",
   },
-  modalContent: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 8,
-    width: "90%",
-    maxHeight: "90%", // Aumentado para permitir más contenido
-    paddingVertical: 20,
-    paddingHorizontal: 15,
+  close: {
+    alignItems: "flex-end",
+    marginBottom: spacing.xs,
   },
   scrollViewContent: {
-    flexGrow: 1, // Permite que el contenido se expanda si es necesario
-    paddingBottom: 20,
+    gap: spacing.lg,
+    paddingBottom: spacing.md,
   },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    flexShrink: 1,
-    textAlign: "center",
-  },
-  modalMessage: {
-    fontSize: 18,
-    marginBottom: 10,
-    textAlign: "center",
-  },
-  modalContentText: {
-    fontSize: 14,
-    color: "#757575",
-    marginBottom: 10,
+  contentText: {
+    color: colors.textMuted,
+    fontSize: fontSizes.md,
+    lineHeight: 23,
     textAlign: "center",
   },
   modalImage: {
     width: "100%",
-    height: 250,
-    borderRadius: 8,
-    alignSelf: "center",
-  },
-  urlButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#2196F3",
-    padding: 10,
-    borderRadius: 5,
-    margin: 10,
-    justifyContent: "center",
-  },
-  urlButtonText: {
-    color: "#FFFFFF",
-    marginLeft: 10,
-    fontSize: 14,
-  },
-  closeButton: {
-    padding: 5,
-    position: "absolute",
-    right: 0,
-    top: 0,
+    height: 280,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
   },
 });
 

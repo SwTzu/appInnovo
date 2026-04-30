@@ -1,91 +1,106 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  Text,
-  TextInput,
-  Button,
-  KeyboardAvoidingView,
   Image,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { formatRut } from "react-rut-formatter";
 import * as NavigationBar from "expo-navigation-bar";
-import { useAuth } from "@/contexts/AuthProvider";
 import { router } from "expo-router";
-import { delay } from "lodash";
+import { LockKeyhole, UserRound } from "lucide-react-native";
+import { useAuth } from "@/contexts/AuthProvider";
+import { AppButton, Card, Field } from "@/components/ui";
+import { colors, fontSizes, radius, shadows, spacing } from "@/constants/theme";
+
 NavigationBar.setVisibilityAsync("hidden");
-/*const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-const scale = SCREEN_WIDTH / 375;
-function normalize(size: number) {
-  const newSize = size * scale;
-  return Math.round(PixelRatio.roundToNearestPixel(newSize));
-}*/
 
 export default function IndexScreen() {
   const { login, isAuthenticated } = useAuth();
   const [rut, setRut] = useState("");
   const [password, setPassword] = useState("");
+  const [isSubmitting, setSubmitting] = useState(false);
 
   const handleLogin = async () => {
     if (!rut || !password) {
       alert("Por favor, complete todos los campos.");
       return;
     }
-    await login(rut, password);
-  };
-  useEffect(() => {
-    if (isAuthenticated) {
-      delay(() => {
-        router.dismissTo("/(lector)/home");
-      }, 400);
+
+    setSubmitting(true);
+    try {
+      await login(rut, password);
+    } finally {
+      setSubmitting(false);
     }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const timeout = setTimeout(() => {
+      router.dismissTo("/(lector)/home");
+    }, 400);
+
+    return () => clearTimeout(timeout);
   }, [isAuthenticated]);
+
   return (
-    <KeyboardAvoidingView style={styles.container} behavior="height">
-      <ScrollView contentContainerStyle={styles.scrollViewContent}>
-        <View style={styles.header}>
-          <Image
-            source={require("@/assets/images/icon.png")}
-            style={{ width: 150, height: 150 }}
-          />
-          <Text style={styles.headerTitle}>Innovo APP</Text>
-        </View>
-        <View style={styles.formContainer}>
-          <View style={styles.form}>
-            <Text style={styles.headerSubtitle}>Ingresa tus credenciales</Text>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Rut</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Introduce tu Rut"
-                inputMode="numeric"
-                keyboardType="default"
-                autoCapitalize="none"
-                value={rut}
-                onChangeText={(text) => {
-                  setRut(formatRut(text)); // Aplicar formateo al cambiar texto
-                }}
-                maxLength={10}
-              />
-            </View>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Contraseña</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Introduce tu contraseña"
-                secureTextEntry={true}
-                autoCapitalize="none"
-                value={password}
-                onChangeText={(text) => setPassword(text)}
-                maxLength={20}
-              />
-            </View>
-            <View style={styles.buttonContainer}>
-              <Button title="Ingresar" color="#0057b7" onPress={handleLogin} />
-            </View>
+    <KeyboardAvoidingView
+      style={styles.container}
+      behavior={Platform.select({ ios: "padding", android: "height" })}
+    >
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={styles.scrollContent}
+      >
+        <View style={styles.hero}>
+          <View style={styles.logoShell}>
+            <Image source={require("@/assets/images/icon.png")} style={styles.logo} />
           </View>
+          <Text style={styles.brand}>Innovo App</Text>
+          <Text style={styles.heroCopy}>
+            Operación en terreno para lecturas, rutas y atenciones especiales.
+          </Text>
         </View>
+
+        <Card style={styles.formCard}>
+          <View style={styles.formHeader}>
+            <Text style={styles.formTitle}>Iniciar sesión</Text>
+            <Text style={styles.formSubtitle}>Ingresa tus credenciales de trabajador.</Text>
+          </View>
+
+          <Field
+            label="RUT"
+            placeholder="12.345.678-9"
+            leftIcon={<UserRound size={18} color={colors.textMuted} />}
+            inputMode="numeric"
+            keyboardType="default"
+            autoCapitalize="none"
+            value={rut}
+            onChangeText={(text) => setRut(formatRut(text))}
+            maxLength={12}
+          />
+
+          <Field
+            label="Contraseña"
+            placeholder="Ingresa tu contraseña"
+            leftIcon={<LockKeyhole size={18} color={colors.textMuted} />}
+            secureTextEntry
+            autoCapitalize="none"
+            value={password}
+            onChangeText={setPassword}
+            maxLength={20}
+          />
+
+          <AppButton title="Ingresar" onPress={handleLogin} loading={isSubmitting} />
+        </Card>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -94,67 +109,60 @@ export default function IndexScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#f2f2f2",
+    backgroundColor: colors.background,
   },
-  scrollViewContent: {
+  scrollContent: {
     flexGrow: 1,
-    justifyContent: "space-between",
-  },
-  header: {
-    width: "100%",
-    aspectRatio: 16 / 9, // Esto mantendrá una proporción constante
-    backgroundColor: "#0057b7",
     justifyContent: "center",
+    padding: spacing.xl,
+    gap: spacing.xl,
+  },
+  hero: {
+    minHeight: 280,
+    borderRadius: radius.xxl,
+    backgroundColor: colors.brand,
+    padding: spacing.xxl,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+    ...shadows.floating,
+  },
+  logoShell: {
+    width: 96,
+    height: 96,
+    borderRadius: radius.xl,
+    backgroundColor: colors.white,
     alignItems: "center",
-    borderBottomRightRadius: 180,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#fff",
-    paddingBottom: 10,
-  },
-  headerSubtitle: {
-    fontSize: 18,
-    color: "black",
-    marginBottom: 15,
-    alignSelf: "center",
-    fontFamily: "bold",
-  },
-  formContainer: {
-    flex: 1,
     justifyContent: "center",
-    alignItems: "center",
-    paddingBottom: 20, // Añadir padding en la parte inferior
+    marginBottom: spacing.xl,
   },
-  form: {
-    width: "75%",
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+  logo: {
+    width: 74,
+    height: 74,
   },
-  inputGroup: {
-    marginBottom: 12,
+  brand: {
+    color: colors.white,
+    fontSize: fontSizes.display,
+    fontWeight: "900",
   },
-  label: {
-    color: "black",
-    marginBottom: 5,
-    fontSize: 16,
+  heroCopy: {
+    color: "#d6e9ff",
+    fontSize: fontSizes.md,
+    lineHeight: 23,
+    marginTop: spacing.sm,
   },
-  input: {
-    backgroundColor: "#f2f2f2",
-    borderColor: "#ccc",
-    borderWidth: 1,
-    borderRadius: 5,
-    padding: 10,
-    fontSize: 12,
+  formCard: {
+    gap: spacing.lg,
   },
-  buttonContainer: {
-    marginVertical: 16,
+  formHeader: {
+    gap: spacing.xs,
+  },
+  formTitle: {
+    color: colors.text,
+    fontSize: fontSizes.xl,
+    fontWeight: "900",
+  },
+  formSubtitle: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
   },
 });

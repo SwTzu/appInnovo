@@ -1,232 +1,144 @@
-import React, { useEffect, useState } from "react";
-import {
-  StyleSheet,
-  View,
-  ScrollView,
-} from "react-native";
+import React from "react";
+import { StyleSheet, Text, View } from "react-native";
 import { Calendar, LocaleConfig } from "react-native-calendars";
-//import * as Location from "expo-location";
-//import TablaAsignaciones from "@/components/home/TablaAsignaciones";
-import TablaAte from "@/components/home/TablaAte";
-import { useGlobalContext } from "@/contexts/GlobalContext";
+import { CalendarDays, ClipboardList } from "lucide-react-native";
 import { router } from "expo-router";
+import TablaAte from "@/components/home/TablaAte";
 import IndiceUV from "@/components/home/InidiceUV";
+import { useGlobalContext } from "@/contexts/GlobalContext";
+import { AppHeader, Badge, Card, Screen } from "@/components/ui";
+import { colors, fontSizes, radius, spacing } from "@/constants/theme";
+
+LocaleConfig.locales.es = {
+  monthNames: [
+    "Enero",
+    "Febrero",
+    "Marzo",
+    "Abril",
+    "Mayo",
+    "Junio",
+    "Julio",
+    "Agosto",
+    "Septiembre",
+    "Octubre",
+    "Noviembre",
+    "Diciembre",
+  ],
+  monthNamesShort: ["Ene.", "Feb.", "Mar.", "Abr.", "May.", "Jun.", "Jul.", "Ago.", "Sep.", "Oct.", "Nov.", "Dic."],
+  dayNames: ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"],
+  dayNamesShort: ["Dom.", "Lun.", "Mar.", "Mié.", "Jue.", "Vie.", "Sáb."],
+  today: "Hoy",
+};
+LocaleConfig.defaultLocale = "es";
+
 export default function HomeScreen() {
-  //const [data, setData] = useState([]);
-  //const [filtro, setFiltro] = useState([]);
-  const {markedDates,setCalendarSelected,asignaciones} = useGlobalContext();
-  
-  /*const functionFilter = (data: any, selected: string) => {
-    const fechaInicio = dayjs(selected);
-    const data_filter = data.filter((data: { fecha_asignacion: any; }) => {
-      const fechaAsignacion = dayjs(data.fecha_asignacion);
-      const useEffect(() => {
-    const fetchTiposDocumento = async () => {
-      try {
-        const response = await fetch('http://blocktype.cl:40000/tipoDocumento/obtenerTipos', {
-          headers: {
-            Authorization: `Bearer YOUR_TOKEN_HERE`,
-          },
-        });
-        const data = await response.json();
-        console.log(data);
-      } catch (error) {
-        console.error('Error fetching tipos documento:', error);
-      }
-    };
+  const { markedDates, setCalendarSelected, asignaciones, dataAte } = useGlobalContext();
 
-    fetchTiposDocumento();
-  }, []);
-  const fetchTiposDocumento = async () => {diferenciaDias = fechaAsignacion.diff(fechaInicio, "day");
-      return diferenciaDias >= 0 && diferenciaDias <= 2;
-    });
-    setFiltro(data_filter);
-  };*/
-
-  LocaleConfig.locales["es"] = {
-    monthNames: [
-      "Enero",
-      "Febrero",
-      "Marzo",
-      "Abril",
-      "Mayo",
-      "Junio",
-      "Julio",
-      "Agosto",
-      "Septiembre",
-      "Octubre",
-      "Noviembre",
-      "Diciembre",
-    ],
-    monthNamesShort: [
-      "Ene.",
-      "Feb.",
-      "Mar.",
-      "Abr.",
-      "May.",
-      "Jun.",
-      "Jul.",
-      "Ago.",
-      "Sep.",
-      "Oct.",
-      "Nov.",
-      "Dic.",
-    ],
-    dayNames: [
-      "Domingo",
-      "Lunes",
-      "Martes",
-      "Miércoles",
-      "Jueves",
-      "Viernes",
-      "Sábado",
-    ],
-    dayNamesShort: ["Dom.", "Lun.", "Mar.", "Mié.", "Jue.", "Vie.", "Sáb."],
-    today: "Hoy",
-  };
-  LocaleConfig.defaultLocale = "es";
   const handleDayPress = (day: { dateString: string }) => {
     const asignacion = asignaciones.find(
-      (asignacion) => asignacion.fecha_asignacion === day.dateString
+      (item) => item.fecha_asignacion === day.dateString
     );
-    if (asignacion) {
-      setCalendarSelected(asignacion);
-      router.push("/(lector)/modalCalendar");
-  };
+
+    if (!asignacion) {
+      return;
     }
-    
+
+    setCalendarSelected(asignacion);
+    router.push("/(lector)/modalCalendar");
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.scrollViewContent} showsVerticalScrollIndicator={false}>
-      <View style={styles.container}>
-        <IndiceUV />
-        {/*<View style={styles.container_Tabla}>
-        <TablaAsignaciones data={filtro} />
-      </View>*/}
-        <View style={styles.container_Tabla}>
-          <TablaAte />
-        </View>
-        <View style={styles.container_calendar}>
-          <Calendar
-            style={styles.calendar}
-            hideExtraDays
-            disableArrowLeft
-            disableArrowRight
-            theme={{
-              fontSize: 24, // Tamaño de la fuente del título del mes
-              textMonthFontWeight: "bold", // Peso de la fuente del título del mes
-              monthTextColor: "black", // Color del título del mes
-              textSectionTitleColor: "#3d3d3d", // Color de los días de la semana
-            }}
-            headerStyle={{
-              borderBottomWidth: 1,
-              borderBottomColor: "#e7e7e7",
-            }}
-            onDayPress={(day: any) => {
-              handleDayPress(day);
-              //functionFilter(data, day.dateString);
-            }}
-            markedDates={markedDates}
+    <Screen scroll contentStyle={styles.content}>
+      <AppHeader
+        eyebrow="Panel de terreno"
+        title="Inicio"
+        subtitle="Resumen de exposición, atenciones especiales y calendario operativo."
+        icon={<ClipboardList size={24} color={colors.brand} />}
+      />
+
+      <IndiceUV />
+      <TablaAte />
+
+      <Card style={styles.calendarCard}>
+        <View style={styles.sectionHeader}>
+          <View>
+            <Text style={styles.sectionTitle}>Calendario</Text>
+            <Text style={styles.sectionSubtitle}>Toca una fecha marcada para ver el detalle.</Text>
+          </View>
+          <Badge
+            label={`${asignaciones.length} asignaciones`}
+            tone={asignaciones.length > 0 ? "brand" : "neutral"}
+            icon={<CalendarDays size={14} color={asignaciones.length > 0 ? colors.brand : colors.textMuted} />}
           />
         </View>
+
+        <Calendar
+          style={styles.calendar}
+          hideExtraDays
+          disableArrowLeft
+          disableArrowRight
+          theme={{
+            calendarBackground: colors.surface,
+            monthTextColor: colors.text,
+            textMonthFontWeight: "800",
+            textMonthFontSize: 18,
+            textDayFontSize: 15,
+            textDayHeaderFontSize: 12,
+            dayTextColor: colors.text,
+            todayTextColor: colors.brand,
+            selectedDayBackgroundColor: colors.brand,
+            selectedDayTextColor: colors.white,
+            textSectionTitleColor: colors.textMuted,
+            textDisabledColor: colors.textSubtle,
+          }}
+          headerStyle={styles.calendarHeader}
+          onDayPress={handleDayPress}
+          markedDates={markedDates}
+        />
+      </Card>
+
+      <View style={styles.footerStats}>
+        <Badge label={`ATE pendientes: ${dataAte.length}`} tone={dataAte.length > 0 ? "warning" : "success"} />
       </View>
-    </ScrollView>
+    </Screen>
   );
 }
+
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#e7e7e7",
-    gap: 10, //estandarizar
-    paddingTop: 15, //estandarizar
+  content: {
+    paddingTop: spacing.xl,
   },
-  scrollViewContent: {
-    flexGrow: 1,
+  calendarCard: {
+    paddingBottom: spacing.sm,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: fontSizes.lg,
+    fontWeight: "900",
+  },
+  sectionSubtitle: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    marginTop: spacing.xs,
+    maxWidth: 210,
   },
   calendar: {
-    width: "100%",
-    borderRadius: 16,
-    paddingBottom: 10,
+    borderRadius: radius.lg,
+    overflow: "hidden",
   },
-  container_Tabla: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    marginHorizontal: 10, //estandarizar
+  calendarHeader: {
+    borderBottomWidth: 1,
+    borderBottomColor: colors.border,
   },
-  container_calendar: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    maxHeight: "33%", //estandarizar
-    marginHorizontal: 10, //estandarizar
-    marginBottom: 10, //estandarizar
-  },
-  error: {
-    color: "red",
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "center",
+  footerStats: {
     alignItems: "center",
-    alignSelf: "center",
-    position: "absolute",
-    zIndex: 1,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalContent: {
-    width: "95%",
-    minHeight: "35%",
-    backgroundColor: "white",
-    borderRadius: 10,
-    padding: 20,
-    alignItems: "center",
-  },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    marginBottom: 20,
-    color: "#333",
-  },
-  closeButton: {
-    position: "absolute",
-    right: 10,
-    top: 10,
-    padding: 10,
-  },
-  closeButtonText: {
-    color: "white",
-    fontSize: 16,
-  },
-  dataItem: {
-    borderTopWidth: 1,
-    borderTopColor: "#e0e0e0",
-    paddingTop: 10,
-    marginTop: 10,
-  },
-  dataRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  label: {
-    fontSize: 16,
-    color: "#333",
-    fontWeight: "bold",
-  },
-  value: {
-    fontSize: 16,
-    color: "#555",
-  },
-  btnNoti: {
-    width: 50,
-    height: 50,
-    borderRadius: 50,
-    backgroundColor: "#0057b7",
-    justifyContent: "center",
-    alignItems: "center",
-    position: "absolute",
-    right: 10,
-    top: 10,
-    zIndex: 1,
+    paddingBottom: spacing.xl,
   },
 });

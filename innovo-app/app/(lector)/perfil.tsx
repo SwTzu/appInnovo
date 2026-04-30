@@ -1,80 +1,99 @@
-import {
-  UserRound,
-  FileText,
-  CreditCard,
-  Mail,
-  BriefcaseBusiness,
-  UserCircle,
-  Camera,
-} from "lucide-react-native";
 import { useEffect, useState } from "react";
 import {
-  StyleSheet,
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  Dimensions,
-  PixelRatio,
-  Linking,
   Alert,
+  Linking,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { Image } from "expo-image";
-import { getPerfil, updatePerfil } from "@/api/trabajador";
-import type { DatoPerfil, Documento } from "@/types/interfaces";
 import * as ImagePicker from "expo-image-picker";
 import * as SecureStore from "expo-secure-store";
-const apiUrl = process.env.EXPO_PUBLIC_API_URL;
-const { width: SCREEN_WIDTH } = Dimensions.get("window");
-const scale = SCREEN_WIDTH / 375;
+import {
+  BriefcaseBusiness,
+  Camera,
+  CreditCard,
+  FileText,
+  Mail,
+  UserCircle,
+  UserRound,
+} from "lucide-react-native";
+import { getPerfil, updatePerfil } from "@/api/trabajador";
+import type { DatoPerfil, Documento } from "@/types/interfaces";
+import { AppButton, AppHeader, Badge, Card, EmptyState, InfoRow, Screen } from "@/components/ui";
+import { colors, fontSizes, radius, shadows, spacing } from "@/constants/theme";
 
-function normalize(size: number) {
-  const newSize = size * scale;
-  return Math.round(PixelRatio.roundToNearestPixel(newSize));
-}
+const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+
+const getCargoLabel = (cargo?: DatoPerfil["cargo"]) => {
+  if (cargo === "administracion") return "Administración";
+  if (cargo === "lector") return "Lector";
+  if (cargo === "supervisor") return "Supervisor";
+  if (cargo === "inspector") return "Inspector";
+  return cargo || "-";
+};
+
+const buildProfileUrl = (perfil?: string) => {
+  if (!perfil || !apiUrl) {
+    return "";
+  }
+
+  const [, path] = perfil.split("/IMG_PERFILES");
+  return path ? `${apiUrl}IMG_PERFILES${path}` : perfil;
+};
+
 export default function PerfilScreen() {
   const [datosPerfil, setDatosPerfil] = useState<DatoPerfil | null>(null);
-  const [imageURL, setImageURL] = useState(String);
+  const [imageURL, setImageURL] = useState("");
+  const [isRefreshingPhoto, setRefreshingPhoto] = useState(false);
+
+  const refreshPerfil = async () => {
+    const data = await getPerfil();
+    setDatosPerfil(data);
+    setImageURL(buildProfileUrl(data.perfil));
+  };
+
   const pickImageAsync = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images", "videos"],
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [4, 3],
       quality: 1,
     });
-    if (!result.canceled) {
+
+    if (result.canceled) {
+      return;
+    }
+
+    setRefreshingPhoto(true);
+    try {
       const res = await updatePerfil(result.assets[0].uri);
       if (res) {
-        setImageURL('');
-        // Una vez que se subió exitosamente, volvemos a pedir el perfil
-        const updatedPerfil = await getPerfil();
-        setDatosPerfil(updatedPerfil);
-        setImageURL(`${apiUrl}IMG_PERFILES${updatedPerfil.perfil.split("/IMG_PERFILES")[1]}`);
+        setImageURL("");
+        await refreshPerfil();
         await Image.clearDiskCache();
-        Alert.alert(
-          "✅ Foto de perfil actualizada",
-          "La foto de perfil se ha actualizado correctamente"
-        );
+        Alert.alert("Foto actualizada", "La foto de perfil se actualizó correctamente.");
       } else {
-        Alert.alert(
-          "❌ Foto de perfil no actualizada",
-          "La foto de perfil no se ha actualizado correctamente"
-        );
+        Alert.alert("No se pudo actualizar", "Intenta nuevamente en unos minutos.");
       }
+    } finally {
+      setRefreshingPhoto(false);
     }
   };
 
   useEffect(() => {
-    getPerfil().then((data: DatoPerfil) => {
-      setDatosPerfil(data);
-      setImageURL(`${apiUrl}IMG_PERFILES${data.perfil.split("/IMG_PERFILES")[1]}`);
+    refreshPerfil().catch(() => {
+      Alert.alert("Error", "No se pudo cargar el perfil.");
     });
   }, []);
+
   const handleOpenURL = (url: string) => {
     Linking.openURL(url).catch((err) =>
       console.error("Error al abrir el URL:", err)
     );
   };
+
   const groupDocumentsByType = (documentos: Documento[]) => {
     return documentos.reduce((acc, doc) => {
       const type = doc.tipo.value;
@@ -85,236 +104,228 @@ export default function PerfilScreen() {
       return acc;
     }, {} as Record<string, Documento[]>);
   };
+
   const renderDocumentItems = () => {
-    if (!datosPerfil?.documentos) return null;
+    if (!datosPerfil?.documentos?.length) {
+      return (
+        <EmptyState
+          compact
+          icon={<FileText size={24} color={colors.textMuted} />}
+          title="Sin documentos"
+          description="Los documentos disponibles aparecerán aquí."
+        />
+      );
+    }
 
     const groupedDocuments = groupDocumentsByType(datosPerfil.documentos);
     return Object.entries(groupedDocuments).map(([type, docs]) => {
       if (type === "Notificacion") return null;
       return (
-      <View key={type}>
-        <Text style={styles.documentTypeTitle}>{type}</Text>
-        {docs.map((doc) => (
-        <TouchableOpacity
-          key={doc._id}
-          style={styles.documentItem}
-          onPress={async () => {
-            const token = await SecureStore.getItemAsync("token");
-            if (!token) {
-              Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para abrir el documento.");
-              return;
-            }
-            handleOpenURL(
-              `${apiUrl}${doc.url}?access_token=${encodeURIComponent(token)}`
-            );
-          }}
-        >
-          <FileText size={24} color="#0057b7" />
-          <View style={styles.documentItemContent}>
-          <Text style={styles.documentText}>{doc.tipo.value}</Text>
-          <Text style={styles.documentDate}>
-            {new Date(doc.fecha).toLocaleDateString()}
-          </Text>
-          </View>
-        </TouchableOpacity>
-        ))}
-      </View>
+        <View key={type} style={styles.documentGroup}>
+          <Text style={styles.documentTypeTitle}>{type}</Text>
+          {docs.map((doc) => (
+            <Pressable
+              key={doc._id}
+              style={({ pressed }) => [styles.documentItem, pressed && styles.pressed]}
+              onPress={async () => {
+                const token = await SecureStore.getItemAsync("token");
+                if (!token) {
+                  Alert.alert("Sesión expirada", "Vuelve a iniciar sesión para abrir el documento.");
+                  return;
+                }
+                handleOpenURL(`${apiUrl}${doc.url}?access_token=${encodeURIComponent(token)}`);
+              }}
+            >
+              <View style={styles.documentIcon}>
+                <FileText size={20} color={colors.brand} />
+              </View>
+              <View style={styles.documentItemContent}>
+                <Text style={styles.documentText} numberOfLines={1}>
+                  {doc.tipo.value}
+                </Text>
+                <Text style={styles.documentDate}>
+                  {new Date(doc.fecha).toLocaleDateString("es-CL")}
+                </Text>
+              </View>
+            </Pressable>
+          ))}
+        </View>
       );
     });
   };
-  //IMG_PERFILES
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      {/* Header Section */}
-      <View style={styles.header}>
-        <View style={styles.profileImageContainer}>
-          {datosPerfil?.perfil ? (
+    <Screen scroll contentStyle={styles.content}>
+      <AppHeader
+        eyebrow="Cuenta"
+        title="Perfil"
+        subtitle="Datos personales, cargo y documentos laborales."
+        icon={<UserRound size={24} color={colors.brand} />}
+      />
+
+      <Card style={styles.profileCard}>
+        <View style={styles.avatarWrap}>
+          {datosPerfil?.perfil && imageURL ? (
             <Image
               style={styles.profileImage}
               source={imageURL}
               contentFit="cover"
-              transition={1000}
-              cachePolicy={"disk"}
+              transition={350}
+              cachePolicy="disk"
             />
           ) : (
-            <UserCircle size={200} color="#0057b7" />
+            <View style={styles.avatarFallback}>
+              <UserCircle size={92} color={colors.brand} />
+            </View>
           )}
 
-          <TouchableOpacity
-            style={styles.changePhotoButton}
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Cambiar foto de perfil"
+            style={({ pressed }) => [styles.changePhotoButton, pressed && styles.pressed]}
             onPress={pickImageAsync}
+            disabled={isRefreshingPhoto}
           >
-            <Camera size={32} color="#FFFFFF" />
-          </TouchableOpacity>
+            <Camera size={22} color={colors.white} />
+          </Pressable>
         </View>
-      </View>
+        <Text style={styles.profileName} numberOfLines={2}>
+          {datosPerfil?.Nombre || "Perfil trabajador"}
+        </Text>
+        <Badge label={getCargoLabel(datosPerfil?.cargo)} tone="brand" />
+      </Card>
 
-      {/* Personal Information Section */}
-      <View style={styles.section}>
+      <Card>
         <Text style={styles.sectionTitle}>Información personal</Text>
+        <InfoRow
+          label="Nombre"
+          value={datosPerfil?.Nombre}
+          icon={<UserRound size={18} color={colors.brand} />}
+        />
+        <InfoRow
+          label="Correo"
+          value={datosPerfil?.correo}
+          icon={<Mail size={18} color={colors.brand} />}
+        />
+        <InfoRow
+          label="Cargo"
+          value={getCargoLabel(datosPerfil?.cargo)}
+          icon={<BriefcaseBusiness size={18} color={colors.brand} />}
+          last
+        />
+      </Card>
 
-        <View style={styles.infoItem}>
-          <UserRound size={24} color="#0057b7" />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Nombre</Text>
-            <Text style={styles.infoValue}>{datosPerfil?.Nombre}</Text>
-          </View>
-        </View>
+      <AppButton
+        title="Ver credencial digital"
+        icon={<CreditCard size={20} color={colors.brand} />}
+        variant="secondary"
+      />
 
-        <View style={styles.infoItem}>
-          <Mail size={24} color="#0057b7" />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Correo electrónico</Text>
-            <Text style={styles.infoValue}>{datosPerfil?.correo}</Text>
-          </View>
-        </View>
-
-        <View style={styles.infoItem}>
-          <BriefcaseBusiness size={24} color="#0057b7" />
-          <View style={styles.infoContent}>
-            <Text style={styles.infoLabel}>Cargo</Text>
-            <Text style={styles.infoValue}>
-              {datosPerfil?.cargo === "administracion"
-                ? "Administración"
-                : datosPerfil?.cargo === "lector"
-                ? "Lector"
-                : datosPerfil?.cargo === "supervisor"
-                ? "Supervisor"
-                : datosPerfil?.cargo === "inspector"
-                ? "Inspector"
-                : datosPerfil?.cargo}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Credential Button */}
-      <TouchableOpacity style={styles.credentialButton}>
-        <CreditCard size={24} color="#ffffff" />
-        <Text style={styles.credentialButtonText}>Ver credencial digital</Text>
-      </TouchableOpacity>
-
-      {/* Documents Section */}
-      <View style={styles.section}>
+      <Card style={styles.documentsCard}>
         <Text style={styles.sectionTitle}>Documentos</Text>
         {renderDocumentItems()}
-      </View>
-    </ScrollView>
+      </Card>
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#e7e7e7",
+  content: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
-  header: {
-    backgroundColor: "white",
-    padding: 10,
+  profileCard: {
     alignItems: "center",
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
-    marginBottom: 20,
+    gap: spacing.md,
   },
-  profileImageContainer: {
+  avatarWrap: {
+    width: 148,
+    height: 148,
     alignItems: "center",
     justifyContent: "center",
-    width: 200,
-    height: 200,
-    position: "relative",
   },
   profileImage: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 136,
+    height: 136,
+    borderRadius: radius.pill,
+  },
+  avatarFallback: {
+    width: 136,
+    height: 136,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brandSoft,
+    alignItems: "center",
+    justifyContent: "center",
   },
   changePhotoButton: {
     position: "absolute",
-    bottom: 0,
-    right: 5,
-    backgroundColor: "#0057b7",
-    borderRadius: 100,
-    padding: 8,
-    borderWidth: 3,
-    borderColor: "white",
-  },
-  changePhotoText: {
-    color: "#0057b7",
-    fontSize: normalize(14),
-  },
-  section: {
-    backgroundColor: "white",
-    borderRadius: 12,
-    padding: 20,
-    marginHorizontal: 16,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    fontSize: normalize(18),
-    fontWeight: "bold",
-    marginBottom: 20,
-    color: "#333",
-  },
-  infoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-  },
-  infoContent: {
-    marginLeft: 15,
-    flex: 1,
-  },
-  infoLabel: {
-    fontSize: normalize(14),
-    color: "#666",
-  },
-  infoValue: {
-    fontSize: normalize(16),
-    color: "#333",
-    fontWeight: "500",
-  },
-  credentialButton: {
-    backgroundColor: "#0057b7",
-    flexDirection: "row",
+    right: 6,
+    bottom: 6,
+    width: 46,
+    height: 46,
+    borderRadius: radius.pill,
+    backgroundColor: colors.brand,
     alignItems: "center",
     justifyContent: "center",
-    padding: 15,
-    borderRadius: 12,
-    marginHorizontal: 16,
-    marginBottom: 20,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    ...shadows.card,
   },
-  credentialButtonText: {
-    color: "white",
-    fontSize: normalize(16),
-    fontWeight: "bold",
-    marginLeft: 10,
+  pressed: {
+    opacity: 0.74,
+  },
+  profileName: {
+    color: colors.text,
+    fontSize: fontSizes.xl,
+    fontWeight: "900",
+    textAlign: "center",
+  },
+  sectionTitle: {
+    color: colors.text,
+    fontSize: fontSizes.lg,
+    fontWeight: "900",
+    marginBottom: spacing.md,
+  },
+  documentsCard: {
+    gap: spacing.sm,
+  },
+  documentGroup: {
+    gap: spacing.sm,
   },
   documentTypeTitle: {
-    fontSize: normalize(16),
-    fontWeight: "600",
-    color: "#333",
-    marginTop: 15,
-    marginBottom: 10,
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    fontWeight: "900",
+    marginTop: spacing.sm,
   },
   documentItem: {
+    minHeight: 68,
     flexDirection: "row",
     alignItems: "center",
-    padding: 15,
-    backgroundColor: "#f8f9fa",
-    borderRadius: 12,
-    marginBottom: 10,
+    gap: spacing.md,
+    padding: spacing.md,
+    backgroundColor: colors.surfaceMuted,
+    borderRadius: radius.lg,
+  },
+  documentIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brandSoft,
   },
   documentItemContent: {
     flex: 1,
-    marginLeft: 15,
   },
   documentText: {
-    fontSize: normalize(16),
-    color: "#333",
+    color: colors.text,
+    fontSize: fontSizes.md,
+    fontWeight: "800",
   },
   documentDate: {
-    fontSize: normalize(12),
-    color: "#666",
-    marginTop: 4,
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
+    marginTop: spacing.xs,
   },
 });

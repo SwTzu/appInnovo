@@ -1,33 +1,39 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
   Alert,
-  TextInput,
   Keyboard,
+  StyleSheet,
+  Text,
   TouchableWithoutFeedback,
-  ScrollView,
-  //Dimensions,
+  View,
 } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import DropDownPicker from "react-native-dropdown-picker";
-import { useGlobalContext } from "@/contexts/GlobalContext";
-import {
-  ImagePlus,
-  CircleX,
-  Camera,
-  ClipboardPen,
-  XCircle,
-} from "lucide-react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useCameraPermissions } from "expo-camera";
+import NetInfo from "@react-native-community/netinfo";
+import { router } from "expo-router";
+import {
+  Camera,
+  CircleX,
+  ClipboardPen,
+  ImagePlus,
+  RotateCcw,
+  Send,
+} from "lucide-react-native";
 import OmnipotentInput from "@/components/novedad/OmnipotentInput";
 import { sendAte, sendNovedad } from "@/api/trabajador";
-import NetInfo from "@react-native-community/netinfo";
-import type { Novedad, Ate } from "@/types/interfaces";
-import { router } from "expo-router";
+import { useGlobalContext } from "@/contexts/GlobalContext";
+import type { Ate, Novedad as NovedadPayload } from "@/types/interfaces";
+import { AppButton, AppHeader, Badge, Card, Field, IconButton, Screen } from "@/components/ui";
+import { colors, fontSizes, radius, spacing } from "@/constants/theme";
+
+const MULTI_PHOTO_TYPE = "67ac4d7e13432b2cbf379597";
+const NO_READING_TYPE = "678ef5f4501063e29023da47";
+
+const onlyStrings = (items: Array<string | null | undefined>) =>
+  items.filter((item): item is string => Boolean(item));
+
 export default function Novedad() {
   const {
     offLine,
@@ -43,84 +49,89 @@ export default function Novedad() {
     setPhotoUri,
   } = useGlobalContext();
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
-  const [open_novedad, setOpen_novedad] = useState(false);
+  const [openNovedad, setOpenNovedad] = useState(false);
   const [photoArray, setPhotoArray] = useState<string[]>([]);
-  const [items_tipo, setItems_tipo] = useState(
+  const [itemsTipo, setItemsTipo] = useState(
     tipoNovedad.map((item) => ({ label: item.value, value: item._id }))
   );
-  const filteredItems = !newAte.tipo
-    ? items_tipo.filter(
-        (item) =>
-          item.label !== "Atención Especial-Lectura" &&
-          item.label !== "Atención Especial-Reparto"
-      )
-    : items_tipo;
-  const [value_direccion, setValue_direccion] = useState(
+  const filteredItems = useMemo(
+    () =>
+      !newAte.tipo
+        ? itemsTipo.filter(
+            (item) =>
+              item.label !== "Atención Especial-Lectura" &&
+              item.label !== "Atención Especial-Reparto"
+          )
+        : itemsTipo,
+    [itemsTipo, newAte.tipo]
+  );
+  const [valueDireccion, setValueDireccion] = useState<string | null>(
     newAte.direccion || null
   );
-  const [value_tipoNovedad, setValue_tipoNovedad] = useState(
-    items_tipo.find((item) => item.label === newAte.tipo)?.value || null
+  const [valueTipoNovedad, setValueTipoNovedad] = useState<string | null>(
+    itemsTipo.find((item) => item.label === newAte.tipo)?.value || null
   );
   const [wasConnected, setWasConnected] = useState<boolean | null>(false);
-  const [value_lectura, setValue_lectura] = useState<number | null>(null);
-  const [value_comentario, setValue_comentario] = useState<string | null>(null);
-  const [value_medidor, setValue_medidor] = useState(
+  const [valueLectura, setValueLectura] = useState<number | null>(null);
+  const [valueComentario, setValueComentario] = useState<string | null>(null);
+  const [valueMedidor, setValueMedidor] = useState(
     newAte.numeroMedidor ? newAte.numeroMedidor.toString() : null
   );
+
+  const isAteMode = Boolean(newAte.tipo);
+  const isMultiPhoto = valueTipoNovedad === MULTI_PHOTO_TYPE;
+  const selectedLabel =
+    filteredItems.find((item) => item.value === valueTipoNovedad)?.label ||
+    newAte.tipo ||
+    null;
+
   const openCamera = async () => {
-    if (!cameraPermission) {
+    if (!cameraPermission?.granted) {
       const permission = await requestCameraPermission();
       if (!permission.granted) {
-        Alert.alert(
-          "Permiso denegado",
-          "Se requieren permisos para acceder a la cámara."
-        );
+        Alert.alert("Permiso denegado", "Se requieren permisos para acceder a la cámara.");
         return;
       }
     }
+
     setPhotoUri(null);
     setNewNovedad({
-      numeroMedidor: Number(value_medidor),
-      direccion: value_direccion,
-      tipoNovedad: value_tipoNovedad,
-      lectura: value_lectura,
-      comentario: value_comentario,
-      foto: [photoUri].filter((uri) => uri !== null),
+      numeroMedidor: Number(valueMedidor),
+      direccion: valueDireccion,
+      tipoNovedad: valueTipoNovedad,
+      lectura: valueLectura,
+      comentario: valueComentario,
+      foto: onlyStrings([photoUri]),
     });
     router.push("/(lector)/modalCam");
   };
+
   const handlerSend = async () => {
-    if (!value_direccion || !value_tipoNovedad || !value_comentario) {
-      Alert.alert("Error", "Por favor llene todos los campos.");
+    if (!valueDireccion || !valueTipoNovedad || !valueComentario) {
+      Alert.alert("Campos incompletos", "Completa dirección, tipo y comentario antes de enviar.");
       return;
     }
-    const newNovedad: Novedad = {
-      direccion: value_direccion,
-      numeroMedidor: Number(value_medidor),
-      tipoNovedad:
-        filteredItems.find((item) => item.value === value_tipoNovedad)?.label ||
-        null,
-      comentario: value_comentario,
-      lectura: value_lectura || null,
-      foto:
-        value_tipoNovedad === "67ac4d7e13432b2cbf379597"
-          ? photoArray.filter((uri) => uri !== null)
-          : [photoUri].filter((uri) => uri !== null),
+
+    const payload: NovedadPayload = {
+      direccion: valueDireccion,
+      numeroMedidor: Number(valueMedidor),
+      tipoNovedad: selectedLabel,
+      comentario: valueComentario,
+      lectura: valueLectura || null,
+      foto: isMultiPhoto ? photoArray : onlyStrings([photoUri]),
     };
     const netInfo = await NetInfo.fetch();
-    if (newAte.tipo) {
+
+    if (isAteMode) {
       if (!photoUri) {
-        Alert.alert("Error", "Por favor llene todos los campos.");
+        Alert.alert("Falta fotografía", "Adjunta una fotografía para completar la ATE.");
         return;
       }
+
       if (netInfo.isConnected) {
-        sendAte(
-          newAte.id_ate,
-          newAte.tipo,
-          newNovedad.foto ? newNovedad.foto.join(",") : null
-        )
+        sendAte(newAte.id_ate, newAte.tipo, payload.foto ? payload.foto.join(",") : null)
           .then(() => {
-            Alert.alert("Éxito", "ATE enviado correctamente.");
+            Alert.alert("Éxito", "ATE enviada correctamente.");
             setDataAte(dataAte.filter((ate) => ate.id_ate !== newAte.id_ate));
             handlerClean();
           })
@@ -128,167 +139,150 @@ export default function Novedad() {
             Alert.alert("Error", error.message);
           });
       } else {
-        SaveAteOffline(
-          newAte.id_ate,
-          newAte.tipo,
-          newNovedad.foto ? newNovedad.foto.join(",") : null
-        );
+        SaveAteOffline(newAte.id_ate, newAte.tipo, payload.foto ? payload.foto.join(",") : null);
       }
+      return;
+    }
+
+    if (netInfo.isConnected) {
+      const matchingData = offLine.find(
+        (item) => item.NumeroMedidor.toString() === payload.numeroMedidor?.toString()
+      );
+      sendNovedad(payload, matchingData?._id || "")
+        .then(() => {
+          Alert.alert("Éxito", "Novedad enviada correctamente.");
+          const filter = offLine.filter((item) => item.NumeroMedidor !== payload.numeroMedidor);
+          setOffLine(filter);
+          handlerClean();
+        })
+        .catch((error) => {
+          Alert.alert("Error", error.message);
+        });
     } else {
-      if (netInfo.isConnected) {
-        const matchingData = offLine.find(
-          (item) =>
-            item.NumeroMedidor.toString() ===
-            newNovedad.numeroMedidor?.toString()
-        );
-        sendNovedad(newNovedad, matchingData?._id || "")
-          .then(() => {
-            Alert.alert("Éxito", "Novedad enviado correctamente.");
-            const filter = offLine.filter(
-              (item) => item.NumeroMedidor !== newNovedad.numeroMedidor
-            );
-            setOffLine(filter);
-            handlerClean();
-          })
-          .catch((error) => {
-            Alert.alert("Error", error.message);
-          });
-      } else {
-        SaveOffline(newNovedad);
-      }
+      SaveOffline(payload);
     }
   };
+
   const handlerClean = () => {
     clearAte();
-    setValue_medidor(null);
-    setValue_direccion(null);
-    setValue_tipoNovedad(null);
-    setValue_lectura(null);
-    setValue_comentario(null);
+    setValueMedidor(null);
+    setValueDireccion(null);
+    setValueTipoNovedad(null);
+    setValueLectura(null);
+    setValueComentario(null);
     setPhotoUri(null);
-    if (newNovedad) {
-      setNewNovedad({
-        direccion: null,
-        numeroMedidor: null,
-        comentario: null,
-        lectura: null,
-        foto: null,
-        tipoNovedad: null,
-      });
-    }
+    setPhotoArray([]);
+    setNewNovedad({
+      direccion: null,
+      numeroMedidor: null,
+      comentario: null,
+      lectura: null,
+      foto: null,
+      tipoNovedad: null,
+    });
   };
+
   const pickImageAsync = async () => {
-    let result = await ImagePicker.launchImageLibraryAsync({
+    const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images"],
-      allowsEditing: value_tipoNovedad != "67ac4d7e13432b2cbf379597",
-      allowsMultipleSelection: value_tipoNovedad === "67ac4d7e13432b2cbf379597",
+      allowsEditing: !isMultiPhoto,
+      allowsMultipleSelection: isMultiPhoto,
       selectionLimit: 2,
       aspect: [4, 4],
       quality: 1,
     });
-    if (!result.canceled) {
-      if (value_tipoNovedad === "67ac4d7e13432b2cbf379597") {
-        setPhotoArray(result.assets.map((item) => item.uri));
-      } else {
-        setPhotoUri(result.assets[0].uri);
-      }
+
+    if (result.canceled) {
+      return;
+    }
+
+    if (isMultiPhoto) {
+      setPhotoArray(result.assets.map((item) => item.uri));
+    } else {
+      setPhotoUri(result.assets[0].uri);
     }
   };
-  const SaveOffline = async (newNovedad: Novedad) => {
-    try {
-      let storedNovedades = await SecureStore.getItemAsync("pendingNovedades");
-      let novedadesArray = storedNovedades ? JSON.parse(storedNovedades) : [];
 
-      // Check if a novedad with the same numeroMedidor already exists
+  const SaveOffline = async (payload: NovedadPayload) => {
+    try {
+      const storedNovedades = await SecureStore.getItemAsync("pendingNovedades");
+      const novedadesArray = storedNovedades ? JSON.parse(storedNovedades) : [];
       const exists = novedadesArray.some(
-        (novedad: Novedad) => novedad.numeroMedidor === newNovedad.numeroMedidor
+        (novedad: NovedadPayload) => novedad.numeroMedidor === payload.numeroMedidor
       );
+
       if (exists) {
-        Alert.alert(
-          "Error",
-          "Ya existe una novedad con este número de medidor."
-        );
+        Alert.alert("Duplicado", "Ya existe una novedad con este número de medidor.");
         handlerClean();
         return;
       }
-      novedadesArray.push(newNovedad);
-      await SecureStore.setItemAsync(
-        "pendingNovedades",
-        JSON.stringify(novedadesArray)
-      );
-      alert("✅ Novedad guardada localmente.");
+
+      novedadesArray.push(payload);
+      await SecureStore.setItemAsync("pendingNovedades", JSON.stringify(novedadesArray));
+      Alert.alert("Guardada sin conexión", "La novedad quedó pendiente de sincronización.");
       handlerClean();
     } catch (error) {
-      console.error("❌ Error guardando la novedad:", error);
+      console.error("Error guardando la novedad:", error);
     }
   };
+
   const SaveAteOffline = async (
-    id_ate: string | null,
-    tipo: string,
+    idAte: string | null,
+    tipo: string | null,
     fotoUri: string | null
   ) => {
     try {
-      let storedAte = await SecureStore.getItemAsync("pendingAte");
-      let ateArray = storedAte ? JSON.parse(storedAte) : [];
+      const storedAte = await SecureStore.getItemAsync("pendingAte");
+      const ateArray = storedAte ? JSON.parse(storedAte) : [];
+      const exists = ateArray.some((ate: Ate) => ate.id_ate === idAte);
 
-      // Check if a novedad with the same numeroMedidor already exists
-      const exists = ateArray.some((ate: any) => ate.id_ate === id_ate);
       if (exists) {
-        Alert.alert("Error", "Ya existe una ATE con este número de medidor.");
+        Alert.alert("Duplicado", "Ya existe una ATE pendiente con este número de medidor.");
         handlerClean();
         return;
       }
-      ateArray.push({ id_ate, tipo, fotoUri });
+
+      ateArray.push({ id_ate: idAte, tipo, fotoUri });
       await SecureStore.setItemAsync("pendingAte", JSON.stringify(ateArray));
-      alert("✅ Atencion especial guardada localmente.");
+      Alert.alert("Guardada sin conexión", "La ATE quedó pendiente de sincronización.");
       handlerClean();
     } catch (error) {
-      console.error("❌ Error guardando la ATE:", error);
+      console.error("Error guardando la ATE:", error);
     }
   };
-  const filterElement = async (numeroMedidor: Number) => {
-    const filter = offLine.filter(
-      (item) => item.NumeroMedidor !== numeroMedidor
-    );
+
+  const filterElement = async (numeroMedidor: number) => {
+    const filter = offLine.filter((item) => item.NumeroMedidor !== numeroMedidor);
     setOffLine(filter);
   };
+
   useEffect(() => {
     const unsubscribe = NetInfo.addEventListener((state) => {
       if (wasConnected === false && state.isConnected) {
         SecureStore.getItemAsync("pendingNovedades").then((novedades) => {
           if (novedades) {
-            let novedadesArray = JSON.parse(novedades);
-            let novedadesPendientes: Novedad[] = [];
+            const novedadesArray = JSON.parse(novedades);
+            const novedadesPendientes: NovedadPayload[] = [];
 
-            novedadesArray.forEach(async (novedad: Novedad) => {
+            novedadesArray.forEach(async (novedad: NovedadPayload) => {
               try {
                 const matchingData = offLine.find(
                   (item) =>
-                    item.NumeroMedidor.toString() ===
-                    novedad.numeroMedidor?.toString()
+                    item.NumeroMedidor.toString() === novedad.numeroMedidor?.toString()
                 );
-                await sendNovedad(novedad, matchingData?._id || "").then(
-                  async () => {
-                    console.log(
-                      "✅ Novedad enviada correctamente desde local."
-                    );
-                    if (novedad.numeroMedidor !== null) {
-                      await filterElement(novedad.numeroMedidor);
-                    }
+                await sendNovedad(novedad, matchingData?._id || "").then(async () => {
+                  if (novedad.numeroMedidor !== null) {
+                    await filterElement(novedad.numeroMedidor);
                   }
-                );
+                });
               } catch (error) {
-                console.log("❌ Error al enviar la novedad:", error);
-                novedadesPendientes.push(novedad); // Guardar solo las que fallaron
+                console.log("Error al enviar la novedad:", error);
+                novedadesPendientes.push(novedad);
               }
             });
 
-            // Actualizar almacenamiento con las pendientes
             if (novedadesPendientes.length > 0) {
-              SecureStore.setItemAsync(
-                "pendingNovedades",
-                JSON.stringify(novedadesPendientes)
-              );
+              SecureStore.setItemAsync("pendingNovedades", JSON.stringify(novedadesPendientes));
             } else {
               SecureStore.deleteItemAsync("pendingNovedades");
             }
@@ -297,24 +291,19 @@ export default function Novedad() {
 
         SecureStore.getItemAsync("pendingAte").then((ate) => {
           if (ate) {
-            let ateArray = JSON.parse(ate);
-            let atePendientes: Ate[] = [];
+            const ateArray = JSON.parse(ate);
+            const atePendientes: Ate[] = [];
             ateArray.forEach(async (ateItem: Ate) => {
               try {
                 await sendAte(ateItem.id_ate, ateItem.tipo, ateItem.fotoUri);
-                console.log("✅ ATE enviada correctamente desde local.");
               } catch (error) {
-                console.error("❌ Error al enviar la ATE:", error);
+                console.error("Error al enviar la ATE:", error);
                 atePendientes.push(ateItem);
               }
             });
 
-            // Actualizar almacenamiento con las que fallaron
             if (atePendientes.length > 0) {
-              SecureStore.setItemAsync(
-                "pendingAte",
-                JSON.stringify(atePendientes)
-              );
+              SecureStore.setItemAsync("pendingAte", JSON.stringify(atePendientes));
             } else {
               SecureStore.deleteItemAsync("pendingAte");
             }
@@ -327,348 +316,295 @@ export default function Novedad() {
     return () => {
       unsubscribe();
     };
-  }, [wasConnected]);
+  }, [wasConnected, offLine]);
 
   useEffect(() => {
     if (newNovedad) {
-      setValue_medidor(newNovedad.numeroMedidor?.toString() || null);
-      setValue_direccion(newNovedad.direccion);
-      setValue_tipoNovedad(
-        items_tipo.find((item) => item.value === newNovedad.tipoNovedad)
-          ?.value || null
+      setValueMedidor(newNovedad.numeroMedidor?.toString() || null);
+      setValueDireccion(newNovedad.direccion);
+      setValueTipoNovedad(
+        itemsTipo.find((item) => item.value === newNovedad.tipoNovedad)?.value || null
       );
-      setValue_lectura(newNovedad.lectura);
-      setValue_comentario(newNovedad.comentario);
+      setValueLectura(newNovedad.lectura);
+      setValueComentario(newNovedad.comentario);
     }
-  }, [newNovedad]);
+  }, [newNovedad, itemsTipo]);
+
   useEffect(() => {
     if (newAte.numeroMedidor) {
-      setValue_medidor(newAte.numeroMedidor.toString());
-      setValue_direccion(newAte.direccion);
-      setValue_tipoNovedad(
-        items_tipo.find((item) => item.label === newAte.tipo)?.value || null
-      );
+      setValueMedidor(newAte.numeroMedidor.toString());
+      setValueDireccion(newAte.direccion);
+      setValueTipoNovedad(itemsTipo.find((item) => item.label === newAte.tipo)?.value || null);
     }
-  }, [newAte]);
-  //console.log(tipoNovedad);
+  }, [newAte, itemsTipo]);
+
+  useEffect(() => {
+    setItemsTipo(tipoNovedad.map((item) => ({ label: item.value, value: item._id })));
+  }, [tipoNovedad]);
+
   return (
     <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <ScrollView
-        contentContainerStyle={styles.scrollViewContent}
-        nestedScrollEnabled={true}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.containerTitle}>
-          <View style={styles.titleContainer}>
-            <ClipboardPen size={32} color="black" strokeWidth={2} />
-            <Text style={styles.title}>Formulario</Text>
-          </View>
-        </View>
-        <View style={styles.formContainer}>
-          <View style={styles.nMedidorContainer}>
-            <Text style={styles.label}>Número de medidor</Text>
-            {newAte.numeroMedidor && (
-              <TouchableOpacity
-                onPress={handlerClean}
-                style={styles.clearButtom}
-              >
-                <XCircle size={24} color="red" />
-              </TouchableOpacity>
-            )}
-          </View>
-          <OmnipotentInput
-            value={value_medidor ? value_medidor.toString() : ""}
-            onChangeText={(text) => setValue_medidor(text)}
-            setDireccion={setValue_direccion}
-            editable={!newAte.numeroMedidor}
+      <View style={styles.flex}>
+        <Screen scroll contentStyle={styles.content}>
+          <AppHeader
+            eyebrow={isAteMode ? "Atención especial" : "Formulario"}
+            title={isAteMode ? "Responder ATE" : "Registrar novedad"}
+            subtitle="Completa los datos del medidor, adjunta evidencia y envía cuando termines."
+            icon={<ClipboardPen size={24} color={colors.brand} />}
+            action={
+              isAteMode ? (
+                <IconButton
+                  label="Limpiar ATE"
+                  variant="danger"
+                  icon={<RotateCcw size={20} color={colors.danger} />}
+                  onPress={handlerClean}
+                />
+              ) : null
+            }
           />
 
-          <Text style={styles.label}>Dirección</Text>
-          <Text style={styles.inputDireccion}>{value_direccion}</Text>
-          <Text style={styles.label}>Tipo</Text>
-          <DropDownPicker
-            style={styles.dropdown}
-            listMode="SCROLLVIEW"
-            placeholder="Seleccione tipo de formulario"
-            containerStyle={styles.dropdownContainer}
-            labelStyle={styles.dropdownLabel}
-            open={open_novedad}
-            value={value_tipoNovedad}
-            items={filteredItems}
-            setOpen={setOpen_novedad}
-            setValue={setValue_tipoNovedad}
-            setItems={setItems_tipo}
-            disabled={newAte.tipo ? true : false}
-          />
-          {/*value_tipoNovedad != '67ac4d7e13432b2cbf379597'*/}
-          {value_tipoNovedad != "67ac4d7e13432b2cbf379597" ? (
-            <>
-              <Text style={styles.label}>Comentarios</Text>
-              <TextInput
-                style={styles.textArea}
-                placeholder="Ingrese comentario"
-                multiline
-                numberOfLines={4}
-                maxLength={240}
-                onChangeText={(text) => setValue_comentario(text)}
-                value={value_comentario || undefined}
-              />
-              {value_tipoNovedad === "678ef5f4501063e29023da47" ? (
-                <></>
-              ) : (
-                <>
-                  <Text style={styles.label}>Lectura correcta</Text>
-                  <TextInput
-                    style={styles.input}
+          <Card style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Medidor</Text>
+              {isAteMode ? <Badge label="ATE cargada" tone="warning" /> : null}
+            </View>
+
+            <Text style={styles.label}>Número de medidor o dirección</Text>
+            <OmnipotentInput
+              value={valueMedidor ? valueMedidor.toString() : ""}
+              onChangeText={(text) => setValueMedidor(text)}
+              setDireccion={setValueDireccion}
+              editable={!newAte.numeroMedidor}
+            />
+
+            <Text style={styles.label}>Dirección</Text>
+            <View style={styles.readonlyBox}>
+              <Text style={styles.readonlyText} numberOfLines={3}>
+                {valueDireccion || "Selecciona un medidor para completar la dirección."}
+              </Text>
+            </View>
+          </Card>
+
+          <Card style={[styles.card, openNovedad && styles.dropdownCard]}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Detalle</Text>
+              {selectedLabel ? <Badge label={selectedLabel} tone="brand" /> : null}
+            </View>
+
+            <Text style={styles.label}>Tipo</Text>
+            <DropDownPicker
+              style={styles.dropdown}
+              dropDownContainerStyle={styles.dropdownList}
+              listMode="SCROLLVIEW"
+              placeholder="Seleccione tipo de formulario"
+              placeholderStyle={styles.placeholder}
+              containerStyle={styles.dropdownContainer}
+              labelStyle={styles.dropdownLabel}
+              open={openNovedad}
+              value={valueTipoNovedad}
+              items={filteredItems}
+              setOpen={setOpenNovedad}
+              setValue={setValueTipoNovedad}
+              setItems={setItemsTipo}
+              disabled={Boolean(newAte.tipo)}
+            />
+
+            {isMultiPhoto ? (
+              <>
+                <Field
+                  label="Lectura Caldera"
+                  placeholder="Ingrese lectura"
+                  keyboardType="numeric"
+                  maxLength={5}
+                  onChangeText={setValueComentario}
+                  value={valueComentario || ""}
+                />
+                <Field
+                  label="Lectura Corrector"
+                  placeholder="Ingrese lectura"
+                  keyboardType="numeric"
+                  maxLength={5}
+                  onChangeText={(text) => setValueLectura(text ? Number(text) : null)}
+                  value={valueLectura ? valueLectura.toString() : ""}
+                />
+              </>
+            ) : (
+              <>
+                <Field
+                  label="Comentarios"
+                  placeholder="Describe la novedad encontrada"
+                  multiline
+                  numberOfLines={4}
+                  maxLength={240}
+                  onChangeText={setValueComentario}
+                  value={valueComentario || ""}
+                />
+                {valueTipoNovedad !== NO_READING_TYPE ? (
+                  <Field
+                    label="Lectura correcta"
                     placeholder="Ingrese lectura correcta"
                     keyboardType="numeric"
                     maxLength={5}
-                    onChangeText={(text) => setValue_lectura(Number(text))}
-                    value={value_lectura ? value_lectura.toString() : ""}
+                    onChangeText={(text) => setValueLectura(text ? Number(text) : null)}
+                    value={valueLectura ? valueLectura.toString() : ""}
                   />
-                </>
-              )}
-            </>
-          ) : (
-            <>
-              <Text style={styles.label}>Lectura Caldera</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ingrese lectura correcta"
-                keyboardType="numeric"
-                maxLength={5}
-                onChangeText={(text) => setValue_comentario(text)}
-                value={value_comentario || undefined}
-              />
-              <Text style={styles.label}>Lectura Corrector</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ingrese lectura correcta"
-                keyboardType="numeric"
-                maxLength={5}
-                onChangeText={(text) => setValue_lectura(Number(text))}
-                value={value_lectura ? value_lectura.toString() : ""}
-              />
-            </>
-          )}
-          <View style={styles.photoContainer}>
-            <Text style={styles.label}>Fotografía</Text>
-            <View style={styles.photoActions}>
-              <TouchableOpacity
-                style={styles.iconButton}
-                onPress={pickImageAsync}
-              >
-                <ImagePlus size={42} color="#989898" />
-              </TouchableOpacity>
-              {value_tipoNovedad != "67ac4d7e13432b2cbf379597" ? (
-                <>
-                  <TouchableOpacity
-                    style={styles.iconButton}
-                    onPress={openCamera}
-                  >
-                    <Camera size={42} color="#989898" />
-                  </TouchableOpacity>
-                  <View style={styles.fileInput}>
-                    <Text style={styles.fileName}>
-                      {photoUri
-                        ? photoUri.split("/").pop()?.slice(0, 8) + "... .jpg"
-                        : "No hay imagen adjunta"}
-                    </Text>
-                    {photoUri && (
-                      <TouchableOpacity onPress={() => setPhotoUri(null)}>
-                        <CircleX size={24} color="red" />
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                </>
-              ) : (
-                <View style={styles.fileInput2}>
-                  {photoArray && (
-                    <TouchableOpacity
-                      onPress={() => setPhotoArray([])}
-                      style={styles.clearButtom2}
-                    >
-                      <CircleX size={24} color="red" />
-                    </TouchableOpacity>
-                  )}
-                  <Text style={styles.fileName}>
-                    {photoArray.length > 0
-                      ? photoArray[0].split("/").pop()?.slice(0, 8) + "... .jpg"
-                      : "No hay imagen adjunta"}
-                  </Text>
-                  <Text style={styles.fileName}>
-                    {photoArray[1]
-                      ? photoArray[1].split("/").pop()?.slice(0, 8) + "... .jpg"
-                      : "No hay imagen adjunta"}
-                  </Text>
-                </View>
-              )}
+                ) : null}
+              </>
+            )}
+          </Card>
+
+          <Card style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Evidencia</Text>
+              <Badge label={isMultiPhoto ? `${photoArray.length}/2 fotos` : photoUri ? "1 foto" : "Sin foto"} tone={photoUri || photoArray.length ? "success" : "neutral"} />
             </View>
-          </View>
-          <TouchableOpacity style={styles.submitButton} onPress={handlerSend}>
-            <Text style={styles.submitButtonText}>Enviar</Text>
-          </TouchableOpacity>
-        </View>
-      </ScrollView>
+
+            <View style={styles.photoActions}>
+              <IconButton
+                label="Seleccionar imagen"
+                variant="plain"
+                size={58}
+                icon={<ImagePlus size={28} color={colors.brand} />}
+                onPress={pickImageAsync}
+              />
+              {!isMultiPhoto ? (
+                <IconButton
+                  label="Abrir cámara"
+                  variant="plain"
+                  size={58}
+                  icon={<Camera size={28} color={colors.brand} />}
+                  onPress={openCamera}
+                />
+              ) : null}
+              <View style={styles.fileBox}>
+                <Text style={styles.fileTitle}>{isMultiPhoto ? "Archivos seleccionados" : "Fotografía"}</Text>
+                {isMultiPhoto ? (
+                  <>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                      {photoArray[0] ? `${photoArray[0].split("/").pop()?.slice(0, 18)}...` : "Primera imagen pendiente"}
+                    </Text>
+                    <Text style={styles.fileName} numberOfLines={1}>
+                      {photoArray[1] ? `${photoArray[1].split("/").pop()?.slice(0, 18)}...` : "Segunda imagen pendiente"}
+                    </Text>
+                  </>
+                ) : (
+                  <Text style={styles.fileName} numberOfLines={1}>
+                    {photoUri ? `${photoUri.split("/").pop()?.slice(0, 22)}...` : "No hay imagen adjunta"}
+                  </Text>
+                )}
+              </View>
+              {(photoUri || photoArray.length > 0) ? (
+                <IconButton
+                  label="Quitar fotografía"
+                  variant="danger"
+                  size={42}
+                  icon={<CircleX size={20} color={colors.danger} />}
+                  onPress={() => {
+                    setPhotoUri(null);
+                    setPhotoArray([]);
+                  }}
+                />
+              ) : null}
+            </View>
+          </Card>
+
+          <AppButton title="Enviar formulario" icon={<Send size={20} color={colors.white} />} onPress={handlerSend} />
+        </Screen>
+      </View>
     </TouchableWithoutFeedback>
   );
 }
 
 const styles = StyleSheet.create({
-  nMedidorContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  container: {
+  flex: {
     flex: 1,
-    backgroundColor: "#e7e7e7",
   },
-  scrollViewContent: {
-    flexGrow: 1,
-    paddingBottom: 20,
-    backgroundColor: "#e7e7e7",
+  content: {
+    paddingTop: spacing.xl,
+    paddingBottom: spacing.xxxl,
   },
-  containerTitle: {
+  card: {
+    gap: spacing.md,
+  },
+  dropdownCard: {
+    zIndex: 10,
+  },
+  sectionHeader: {
     flexDirection: "row",
+    alignItems: "flex-start",
     justifyContent: "space-between",
-    alignItems: "center",
-    padding: "5%",
-    borderBottomColor: "black",
-    borderBottomWidth: 1,
-    backgroundColor: "white",
+    gap: spacing.md,
   },
-  titleContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  formContainer: {
-    padding: "5%",
+  sectionTitle: {
+    color: colors.text,
+    fontSize: fontSizes.lg,
+    fontWeight: "900",
   },
   label: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "#3d3d3d",
-    marginBottom: 5,
+    color: colors.text,
+    fontSize: fontSizes.sm,
+    fontWeight: "800",
   },
-  input: {
-    fontSize: 16,
-    width: "100%",
-    height: 50,
+  readonlyBox: {
+    minHeight: 52,
+    justifyContent: "center",
+    borderRadius: radius.lg,
     borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 15,
-    backgroundColor: "white",
+    borderColor: colors.border,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
   },
-  inputDireccion: {
-    textAlignVertical: "center",
-    fontSize: 14,
-    width: "100%",
-    height: 50,
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 15,
-    backgroundColor: "white",
-  },
-  textArea: {
-    fontSize: 16,
-    width: "100%",
-    height: 100,
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 12,
-    padding: 10,
-    marginBottom: 15,
-    backgroundColor: "white",
-    textAlignVertical: "top",
+  readonlyText: {
+    color: colors.textMuted,
+    fontSize: fontSizes.md,
+    fontWeight: "700",
+    lineHeight: 22,
   },
   dropdownContainer: {
-    marginBottom: 15,
+    marginBottom: spacing.sm,
+    zIndex: 20,
   },
   dropdown: {
-    borderColor: "#d1d1d1",
-    borderRadius: 12,
+    minHeight: 52,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
+  },
+  dropdownList: {
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surface,
   },
   dropdownLabel: {
-    color: "black",
+    color: colors.text,
+    fontWeight: "700",
   },
-  photoContainer: {
-    marginBottom: 20,
+  placeholder: {
+    color: colors.textSubtle,
   },
   photoActions: {
     flexDirection: "row",
     alignItems: "center",
+    gap: spacing.sm,
   },
-  iconButton: {
-    width: 65,
-    height: 65,
-    borderRadius: 12,
-    backgroundColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
-    marginRight: 10,
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-  },
-  fileInput: {
+  fileBox: {
     flex: 1,
-    flexDirection: "row",
-    height: 65,
-    padding: 10,
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 12,
-    backgroundColor: "white",
-    justifyContent: "space-between",
-    alignItems: "center",
+    minHeight: 58,
+    justifyContent: "center",
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  fileTitle: {
+    color: colors.text,
+    fontSize: fontSizes.xs,
+    fontWeight: "900",
   },
   fileName: {
-    fontSize: 16,
-    color: "#333",
-  },
-  submitButton: {
-    backgroundColor: "#0057b7",
-    borderRadius: 12,
-    paddingVertical: 15,
-    alignItems: "center",
-    marginTop: 20,
-  },
-  submitButtonText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  clearButtom: {
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 10,
-  },
-  clearButtom2: {
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 2,
-    position: "absolute",
-    right: 0,
-    top: 0,
-  },
-  fileInput2: {
-    flex: 1,
-    flexDirection: "column",
-    height: 65,
-    borderWidth: 1,
-    borderColor: "#d1d1d1",
-    borderRadius: 12,
-    backgroundColor: "white",
-    justifyContent: "center",
-    alignItems: "center",
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
+    marginTop: spacing.xs,
   },
 });

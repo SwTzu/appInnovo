@@ -1,121 +1,138 @@
-import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-} from "react-native";
+import React from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { ChevronRight, ClipboardCheck, MapPin } from "lucide-react-native";
 import { router } from "expo-router";
 import { useGlobalContext } from "@/contexts/GlobalContext";
-interface Ate {
-  id_ate: string | null;
-  direccion: string | null;
-  sector: string | null;
-  tipo: string | null;
-  comentario: string | null;
-  lat: number | null;
-  lng: number | null;
-  numeroMedidor: number | null;
-}
+import type { Ate } from "@/types/interfaces";
+import { Badge, Card, EmptyState } from "@/components/ui";
+import { colors, fontSizes, radius, spacing } from "@/constants/theme";
+
 const TablaAte: React.FC = () => {
-  const { setNewAte, dataAte} = useGlobalContext();
+  const { setNewAte, dataAte } = useGlobalContext();
+
   const handlerAte = (item: Ate) => {
     setNewAte(item);
     router.push("/(lector)/modalAte");
   };
+
   return (
-    <View style={styles.container}>
-      <Text
-        style={styles.Titulo}
-      >
-        Atenciones Especiales
-      </Text>
+    <Card style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.headerCell}>Dirección</Text>
-        <Text style={styles.headerCell}>Sector</Text>
-        <Text style={styles.headerCell}>Tipo</Text>
-      </View>
-      {dataAte.length > 0 ? (
-        <ScrollView style={{ minHeight: 100, maxHeight:'100%'}}>
-          {dataAte.map((item, index) => (
-            <TouchableOpacity
-              key={index}
-              style={[
-                styles.row,
-                index === dataAte.length - 1 && { borderBottomWidth: 0 },
-              ]}
-              onPress={() => handlerAte(item)}
-            >
-              <Text style={styles.cell}>{item.direccion}</Text>
-              <Text style={styles.cell}>{item.sector}</Text>
-              <Text style={styles.cellTipo}>{item.tipo}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      ) : (
-        <View style={styles.emptyContainer}>
-          <Text style={styles.emptyText}>
-            No hay Atenciones Especiales asignados
-          </Text>
+        <View>
+          <Text style={styles.title}>Atenciones especiales</Text>
+          <Text style={styles.subtitle}>Pendientes asignadas para tu ruta.</Text>
         </View>
+        <Badge label={`${dataAte.length}`} tone={dataAte.length > 0 ? "warning" : "success"} />
+      </View>
+
+      {dataAte.length > 0 ? (
+        <View style={styles.list}>
+          {dataAte.map((item, index) => (
+            <Pressable
+              key={item.id_ate ?? `${item.numeroMedidor}-${index}`}
+              accessibilityRole="button"
+              onPress={() => handlerAte(item)}
+              style={({ pressed }) => [styles.row, pressed && styles.rowPressed]}
+            >
+              <View style={styles.pinShell}>
+                <MapPin size={18} color={colors.brand} />
+              </View>
+              <View style={styles.rowContent}>
+                <Text style={styles.address} numberOfLines={2}>
+                  {item.direccion || "Dirección sin registrar"}
+                </Text>
+                <View style={styles.metaRow}>
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {item.sector || "Sin sector"}
+                  </Text>
+                  <Text style={styles.dot}>•</Text>
+                  <Text style={styles.meta} numberOfLines={1}>
+                    {item.tipo || "ATE"}
+                  </Text>
+                </View>
+              </View>
+              <ChevronRight size={20} color={colors.textMuted} />
+            </Pressable>
+          ))}
+        </View>
+      ) : (
+        <EmptyState
+          compact
+          icon={<ClipboardCheck size={24} color={colors.success} />}
+          title="Sin atenciones pendientes"
+          description="Cuando tengas ATE asignadas aparecerán en esta lista."
+        />
       )}
-    </View>
+    </Card>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 4,
-    height: "100%",
-  },
-  Titulo:{
-    color: "black",
-    borderBottomWidth: 1,
-    fontWeight: "bold",
-    fontSize: 16,
-    paddingBottom: 8,
-    textAlign: "center",
+  card: {
+    gap: spacing.lg,
   },
   header: {
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "black",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: spacing.md,
   },
-  headerCell: {
-    flex: 1,
-    padding: 4,
-    textAlign: "center",
-    fontSize: 16,
+  title: {
+    color: colors.text,
+    fontSize: fontSizes.lg,
+    fontWeight: "900",
+  },
+  subtitle: {
+    color: colors.textMuted,
+    fontSize: fontSizes.sm,
+    marginTop: spacing.xs,
+  },
+  list: {
+    gap: spacing.sm,
   },
   row: {
+    minHeight: 74,
     flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: "#d1d1d1",
-    marginHorizontal: 5, // Ajuste para reducir el ancho del borde inferior
-  },
-  cell: {
-    flex: 1,
-    padding: 4,
-    textAlign: "center",
-    color: "#5d5d5d",
-    fontSize: 12,
-  },
-  cellTipo: {
-    flex: 1,
-    padding: 4,
-    textAlign: "center",
-    color: "#5d5d5d",
-    fontSize: 12,
-  },
-  emptyContainer: {
-    padding: 20,
     alignItems: "center",
+    gap: spacing.md,
+    padding: spacing.md,
+    borderRadius: radius.lg,
+    backgroundColor: colors.surfaceMuted,
   },
-  emptyText: {
-    fontSize: 16,
-    color: "#5d5d5d",
+  rowPressed: {
+    opacity: 0.76,
+  },
+  pinShell: {
+    width: 38,
+    height: 38,
+    borderRadius: radius.md,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.brandSoft,
+  },
+  rowContent: {
+    flex: 1,
+    gap: spacing.xs,
+  },
+  address: {
+    color: colors.text,
+    fontSize: fontSizes.md,
+    fontWeight: "900",
+  },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+  },
+  meta: {
+    color: colors.textMuted,
+    fontSize: fontSizes.xs,
+    fontWeight: "700",
+    maxWidth: 110,
+  },
+  dot: {
+    color: colors.textSubtle,
+    fontSize: fontSizes.xs,
   },
 });
 

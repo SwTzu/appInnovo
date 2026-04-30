@@ -10,6 +10,7 @@ import {
 import { MeterNumberInputProps } from '@/types/interfaces';
 import { useGlobalContext } from '@/contexts/GlobalContext';
 import { DataOffline } from '@/types/interfaces';
+import { colors, fontSizes, radius, spacing } from '@/constants/theme';
 const OmnipotentInput: React.FC<MeterNumberInputProps> = ({
   value,
   onChangeText,
@@ -81,8 +82,7 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
     width: '100%',
-    height: 50,
-    marginBottom: 20,
+    minHeight: 52,
     position: 'relative',
     zIndex: 1,
   },
@@ -92,34 +92,36 @@ const styles = StyleSheet.create({
   },
   input: {
     width: '100%',
-    height: '100%',
-    fontSize: 16,
+    minHeight: 52,
+    fontSize: fontSizes.md,
     borderWidth: 1,
-    borderColor: '#d1d1d1',
-    borderRadius: 12,
-    padding: 10,
-    backgroundColor: 'white',
+    borderColor: colors.border,
+    borderRadius: radius.lg,
+    paddingHorizontal: spacing.md,
+    backgroundColor: colors.surface,
+    color: colors.text,
     zIndex: 2,
   },
   suggestionContainer: {
     position: 'absolute',
-    top: 50,
+    top: 58,
     left: 0,
     right: 0,
-    backgroundColor: '#fff',
+    backgroundColor: colors.surface,
     borderWidth: 1,
-    borderColor: '#d1d1d1',
-    borderRadius: 12,
+    borderColor: colors.border,
+    borderRadius: radius.lg,
     maxHeight: 200,
     zIndex: 3,
   },
   suggestionItem: {
-    padding: 4,
+    padding: spacing.md,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: colors.border,
   },
   suggestionText: {
-    fontSize: 14,
-    color: '#333',
+    fontSize: fontSizes.sm,
+    color: colors.text,
+    fontWeight: '700',
   },
 });

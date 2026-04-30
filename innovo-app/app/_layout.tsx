@@ -11,7 +11,12 @@ import { useEffect } from "react";
 import "react-native-reanimated";
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider } from "@/contexts/AuthProvider";
+import { installApiDebugLogger } from "@/utils/apiDebug";
 import * as NavigationBar from 'expo-navigation-bar';
+import { SafeAreaProvider } from "react-native-safe-area-context";
+
+installApiDebugLogger();
+
 export {
   // Catch any errors thrown by the Layout component.
   ErrorBoundary,
@@ -47,19 +52,23 @@ export default function RootLayout() {
   }
 
   return (
-    <AuthProvider>
+    <SafeAreaProvider>
+      <AuthProvider>
         <RootLayoutNav />
-    </AuthProvider>
+      </AuthProvider>
+    </SafeAreaProvider>
   );
 }
 
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
-  NavigationBar.setVisibilityAsync('hidden');
-  NavigationBar.setPositionAsync('absolute');
-  NavigationBar.setBehaviorAsync('overlay-swipe'
-  )
-  NavigationBar.setBackgroundColorAsync('#ffffff00')
+  useEffect(() => {
+    NavigationBar.setVisibilityAsync('hidden');
+    NavigationBar.setPositionAsync('absolute');
+    NavigationBar.setBehaviorAsync('overlay-swipe');
+    NavigationBar.setBackgroundColorAsync('#ffffff00');
+  }, []);
+
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
