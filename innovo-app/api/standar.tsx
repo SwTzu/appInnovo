@@ -1,6 +1,6 @@
 import { router } from "expo-router";
 //import rutasData from "../data/rutas.json"; // Importar datos de rutas
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/utils/secureStorage";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
 
 type LoginSession = {
@@ -24,9 +24,9 @@ export const loginApi = async (
   rut: string,
   clave: string,
   ID: string,
-  pushToken: string
+  pushToken?: string | null
 ): Promise<LoginSession | null> => {
-  if (!rut || !clave || !ID || !pushToken) {
+  if (!rut || !clave || !ID) {
     alert("Por favor, complete todos los campos");
     return null;
   }
@@ -43,7 +43,7 @@ export const loginApi = async (
         rut: rut,
         clave: clave,
         ID: ID,
-        tokenPush: pushToken,
+        ...(pushToken ? { tokenPush: pushToken } : {}),
       }),
       }
     );

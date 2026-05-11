@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/utils/secureStorage";
 import {
   BriefcaseBusiness,
   Camera,

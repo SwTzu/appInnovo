@@ -16,7 +16,9 @@ import { useAuth } from "@/contexts/AuthProvider";
 import { AppButton, Card, Field } from "@/components/ui";
 import { colors, fontSizes, radius, shadows, spacing } from "@/constants/theme";
 
-NavigationBar.setVisibilityAsync("hidden");
+if (Platform.OS !== "web") {
+  NavigationBar.setVisibilityAsync("hidden");
+}
 
 const sanitizeRutInput = (value: string) =>
   value.replace(/[^0-9kK]/g, "").toUpperCase().slice(0, 9);

@@ -23,6 +23,10 @@ export const ensureAndroidNotificationChannel = async () => {
 };
 
 export const ensureNotificationPermission = async (showSettingsAlert = false) => {
+  if (Platform.OS === "web") {
+    return false;
+  }
+
   await ensureAndroidNotificationChannel();
 
   const currentPermission = await Notifications.getPermissionsAsync();
@@ -52,6 +56,10 @@ export const ensureNotificationPermission = async (showSettingsAlert = false) =>
 };
 
 export const getExpoPushToken = async () => {
+  if (Platform.OS === "web") {
+    return null;
+  }
+
   const projectId =
     Constants.expoConfig?.extra?.eas?.projectId ?? Constants.easConfig?.projectId;
 
@@ -63,6 +71,10 @@ export const getExpoPushToken = async () => {
 };
 
 export const presentLocalNotification = async (notification: Notificacion) => {
+  if (Platform.OS === "web") {
+    return;
+  }
+
   const hasPermission = await ensureNotificationPermission(true);
   if (!hasPermission) {
     return;

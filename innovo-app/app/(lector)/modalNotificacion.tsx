@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { router, useLocalSearchParams } from "expo-router";
 import { CircleX, ExternalLink, FileText } from "lucide-react-native";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/utils/secureStorage";
 import type { Notificacion } from "@/types/interfaces";
 import { AppButton, AppHeader, IconButton, ModalSheet } from "@/components/ui";
 import { colors, fontSizes, radius, spacing } from "@/constants/theme";

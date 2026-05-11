@@ -2,12 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Keyboard,
+  Platform,
   StyleSheet,
   Text,
   TouchableWithoutFeedback,
   View,
 } from "react-native";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/utils/secureStorage";
 import DropDownPicker from "react-native-dropdown-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useCameraPermissions } from "expo-camera";
@@ -84,8 +85,23 @@ export default function Novedad() {
     filteredItems.find((item) => item.value === valueTipoNovedad)?.label ||
     newAte.tipo ||
     null;
+  const isWeb = Platform.OS === "web";
 
   const openCamera = async () => {
+    if (isWeb) {
+      setPhotoUri(null);
+      setNewNovedad({
+        numeroMedidor: Number(valueMedidor),
+        direccion: valueDireccion,
+        tipoNovedad: valueTipoNovedad,
+        lectura: valueLectura,
+        comentario: valueComentario,
+        foto: onlyStrings([photoUri]),
+      });
+      router.push("/(lector)/modalCam");
+      return;
+    }
+
     if (!cameraPermission?.granted) {
       const permission = await requestCameraPermission();
       if (!permission.granted) {
@@ -121,6 +137,11 @@ export default function Novedad() {
       foto: isMultiPhoto ? photoArray : onlyStrings([photoUri]),
     };
     const netInfo = await NetInfo.fetch();
+
+    if (!netInfo.isConnected && isWeb) {
+      Alert.alert("Sin conexión", "La versión web requiere conexión para enviar formularios.");
+      return;
+    }
 
     if (isAteMode) {
       if (!photoUri) {
@@ -257,6 +278,10 @@ export default function Novedad() {
   };
 
   useEffect(() => {
+    if (isWeb) {
+      return;
+    }
+
     const unsubscribe = NetInfo.addEventListener((state) => {
       if (wasConnected === false && state.isConnected) {
         SecureStore.getItemAsync("pendingNovedades").then((novedades) => {
@@ -316,7 +341,7 @@ export default function Novedad() {
     return () => {
       unsubscribe();
     };
-  }, [wasConnected, offLine]);
+  }, [isWeb, wasConnected, offLine]);
 
   useEffect(() => {
     if (newNovedad) {

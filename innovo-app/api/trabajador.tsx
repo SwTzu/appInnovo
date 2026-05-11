@@ -1,10 +1,16 @@
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/utils/secureStorage";
 import {
   Novedad,
   NotificacionesPageRequest,
   NotificacionesPageResponse,
 } from "@/types/interfaces";
+import { appendFormDataFile } from "@/utils/formDataFile";
 const apiUrl = process.env.EXPO_PUBLIC_API_URL;
+
+const getMultipartAuthHeaders = (token: string) => ({
+  Authorization: `Bearer ${token}`,
+});
+
 export async function obtenerStore() {
   try {
     const datos = {
@@ -102,29 +108,21 @@ export const getTiposNovedad = async () => {
 export const sendNovedad = async (novedad: Novedad, _id:string) => {
   try {
     const datos = await obtenerStore();
-    if (!datos) {
-      throw new Error("No se pudieron obtener los datos del SecureStore");
+    if (!datos?.token) {
+      throw new Error("Token de autenticación no válido");
     }
     const formData = new FormData();
-    formData.append("token", datos.token || "");
+    formData.append("token", datos.token);
     
     formData.append("TipoNovedadConsulta", novedad.tipoNovedad || "");
     if (novedad.foto) {
-      if (Array.isArray(novedad.foto)) {
-        novedad.foto.forEach((uri, index) => {
-          formData.append("file", {
-            uri: uri,
-            type: "image/jpeg", // Ajusta el tipo MIME si fuese necesario
-            name: `upload_${index}.jpg`,
-          } as any);
-        });
-      } else {
-        // En caso de que 'foto' sea una única URI, lo enviamos con otro nombre de clave
-        formData.append("file", {
-          uri: typeof novedad.foto === "string" ? (novedad.foto as string).replace("file://", "") : "", // Ajusta la URI si fuese necesario
+      const fotos = Array.isArray(novedad.foto) ? novedad.foto : [novedad.foto];
+
+      for (const [index, uri] of fotos.entries()) {
+        await appendFormDataFile(formData, "file", uri, {
           type: "image/jpeg",
-          name: "upload.jpg",
-        } as any);
+          name: fotos.length > 1 ? `upload_${index}.jpg` : "upload.jpg",
+        });
       }
     }
     formData.append("idMedidor", novedad.numeroMedidor ? novedad.numeroMedidor.toString() : "");
@@ -133,6 +131,7 @@ export const sendNovedad = async (novedad: Novedad, _id:string) => {
     formData.append("Comentario", novedad.comentario || "");
     const response = await fetch(`${apiUrl}novedad/crearNovedad`, {
       method: "POST",
+      headers: getMultipartAuthHeaders(datos.token),
       body: formData,
     });
     if (response.ok) {
@@ -160,31 +159,33 @@ export const sendAte = async (
       throw new Error("Token de autenticación no válido");
     }
 
-    // Crear FormData
     const formData = new FormData();
-    formData.append("file", {
-      uri: fotoUri,
+    await appendFormDataFile(formData, "file", fotoUri, {
       type: "image/jpeg",
       name: "upload.jpg",
-    } as any);
+    });
     formData.append("token", datos.token);
     formData.append("id_ate", id_ate);
     formData.append("tipo", tipo);
     // Enviar al backend
     const response = await fetch(`${apiUrl}middleware/repsuestaATE`, {
       method: "POST",
+      headers: getMultipartAuthHeaders(datos.token),
       body: formData,
     });
     if (response.ok) {
       return response;
       // Aquí puedes manejar la respuesta exitosa
-    } else {
-      console.error("Error al subir la imagen");
-      // Aquí puedes manejar el error
     }
+
+    const errorText = await response.text().catch(() => response.statusText);
+    throw new Error(
+      `Error al subir la imagen (${response.status}${errorText ? `: ${errorText}` : ""})`
+    );
   } catch (error) {
-    console.error("Error al enviar ATE:", (error as any).message);
-    throw new Error("Error al enviar ATE");
+    const message = error instanceof Error ? error.message : "Error al enviar ATE";
+    console.error("Error al enviar ATE:", message);
+    throw new Error(message);
   }
 };
 export const getNotificaciones = async () => {
@@ -327,20 +328,20 @@ export const updateStateNotificacion = async (id: string) => {
 export const updatePerfil = async (foto: string) => {
   try {
     const datos = await obtenerStore();
-    if (!datos) {
-      throw new Error("No se pudieron obtener los datos del SecureStore");
+    if (!datos?.token) {
+      throw new Error("Token de autenticación no válido");
     }
     const formData = new FormData();
-    formData.append("token", datos.token || "");
+    formData.append("token", datos.token);
     if (foto) {
-      formData.append("file", {
-        uri: foto,
+      await appendFormDataFile(formData, "file", foto, {
         type: "image/jpeg",
         name: "perfil.jpg",
-      } as any);
+      });
     }
     const response = await fetch(`${apiUrl}trabajador/fotoTrabajador`, {
       method: "POST",
+      headers: getMultipartAuthHeaders(datos.token),
       body: formData,
     });
     if (response.ok) {

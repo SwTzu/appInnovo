@@ -6,11 +6,11 @@ import React, {
   ReactNode,
 } from "react";
 import { useCameraPermissions } from "expo-camera";
-import { Alert } from "react-native";
+import { Alert, Platform } from "react-native";
 import { loginApi } from "@/api/standar";
 import { refreshSessionApi } from "@/api/standar";
 import {getUV} from "@/api/trabajador";
-import * as SecureStore from "expo-secure-store";
+import * as SecureStore from "@/utils/secureStorage";
 import { router } from "expo-router";
 import { io, Socket } from "socket.io-client";
 import { validarToken } from "@/api/standar";
@@ -26,6 +26,7 @@ import {
 } from "@/utils/notifications";
 const apiURL = process.env.EXPO_PUBLIC_API_URL;
 const DEFAULT_UV_LOCATION = { lat: -33.015, lng: -71.551 };
+const WEB_DEVICE_ID_KEY = "innovo-web-device-id";
 interface AuthContextProps {
   login: (rut: string, password: string) => Promise<void>;
   socket: Socket | null;
@@ -35,6 +36,10 @@ interface AuthContextProps {
   checkToken: () => Promise<void>;
 }
 const obtenerUbicacion = async () => {
+  if (Platform.OS === "web") {
+    return DEFAULT_UV_LOCATION;
+  }
+
   const { status } = await Location.requestForegroundPermissionsAsync();
   if (status !== "granted") {
     console.warn("Permiso de ubicación denegado");
@@ -51,6 +56,7 @@ let locationSubscription: Location.LocationSubscription | null = null; // Guarda
 let isTracking = false; // Control de ejecución única
 const trackLocation = async (socket: Socket | null, token: string) => {
   if (!socket || !token || isTracking) return; // Evitar múltiples ejecuciones
+  if (Platform.OS === "web") return;
 
   // 🔹 Si ya hay una suscripción, cancelarla antes de iniciar una nueva
   if (locationSubscription) {
@@ -87,6 +93,24 @@ const trackLocation = async (socket: Socket | null, token: string) => {
   );
 };
 const AuthContext = createContext<AuthContextProps | undefined>(undefined);
+const getDeviceId = async () => {
+  if (Platform.OS !== "web") {
+    return DeviceInfo.getUniqueId();
+  }
+
+  const existingId = await SecureStore.getItemAsync(WEB_DEVICE_ID_KEY);
+  if (existingId) {
+    return existingId;
+  }
+
+  const generatedId =
+    typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? `web-${crypto.randomUUID()}`
+      : `web-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+  await SecureStore.setItemAsync(WEB_DEVICE_ID_KEY, generatedId);
+  return generatedId;
+};
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -113,6 +137,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     fetchUVData();
   }, [isAuthenticated]);
   useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
     const checkNotificationPermissions = async () => {
       const hasPermission = await ensureNotificationPermission(true);
       if (!hasPermission) {
@@ -178,11 +206,19 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, [socket, isAuthenticated]);
   useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
     if (!permission?.granted) {
       requestPermission();
     }
   }, [permission]);
   useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
     const responseListener =
       Notifications.addNotificationResponseReceivedListener((response) => {
         router.push("/(lector)/modalNotificaciones");
@@ -193,13 +229,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     };
   }, []);
   
-  Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowAlert: true,
-      shouldPlaySound: true,
-      shouldSetBadge: true,
-    }),
-  });
+  if (Platform.OS !== "web") {
+    Notifications.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: true,
+      }),
+    });
+  }
   const connectSocket = (token: string) => {
     if (socket && isAuthenticated) {
       console.warn(
@@ -275,17 +313,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
       return;
     }
     try {
-      const hasPermission = await ensureNotificationPermission(true);
-      if (!hasPermission) {
-        return;
-      }
-      const pushToken = await getExpoPushToken(); // Obtener el token push más reciente
-      const deviceID = await DeviceInfo.getUniqueId(); // Obtener el ID único del dispositivo
+      const hasPermission = Platform.OS === "web" ? false : await ensureNotificationPermission(true);
+      const pushToken = hasPermission ? await getExpoPushToken() : null;
+      const deviceID = await getDeviceId(); // Obtener el ID único del dispositivo
       if (
         !deviceID ||
-        !pushToken ||
         deviceID.trim() === "" ||
-        pushToken.trim() === ""
+        (Platform.OS !== "web" && (!pushToken || pushToken.trim() === ""))
       ) {
         console.error("Falta deviceID o pushToken, o están vacíos");
         alert("❌ Error al obtener información del dispositivo.");
@@ -325,7 +359,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     if (token) {
       setIsAuthenticated(true);
       if (!socket) connectSocket(token);
-      const hasPermission = await ensureNotificationPermission(true);
+      const hasPermission = Platform.OS === "web" ? false : await ensureNotificationPermission(true);
       const pushToken = hasPermission ? await getExpoPushToken() : null;
       if (pushToken) {
         await fetch(`${apiURL}trabajador/updatePushToken`, {

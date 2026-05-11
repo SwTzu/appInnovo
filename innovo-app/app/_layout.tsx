@@ -8,6 +8,7 @@ import { useFonts } from "expo-font";
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
+import { Platform } from "react-native";
 import "react-native-reanimated";
 import { useColorScheme } from "@/components/useColorScheme";
 import { AuthProvider } from "@/contexts/AuthProvider";
@@ -63,6 +64,10 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const colorScheme = useColorScheme();
   useEffect(() => {
+    if (Platform.OS === "web") {
+      return;
+    }
+
     NavigationBar.setVisibilityAsync('hidden');
     NavigationBar.setPositionAsync('absolute');
     NavigationBar.setBehaviorAsync('overlay-swipe');
@@ -72,6 +77,7 @@ function RootLayoutNav() {
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
+        <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="_index" options={{ headerShown: false }} />
         <Stack.Screen name="(lector)" options={{ headerShown: false }} />
         <Stack.Screen name="+not-found" options={{ headerShown: false }} />
